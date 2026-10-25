@@ -5022,8 +5022,8 @@ components.coreSettings = function(context)
     config.itemGodpot = true
     config.birdsEyeCam = false
     config.speedCustom = false
-    config.speedNormal = 20
-    config.speedBurst = 22
+    config.speedNormal = 22
+    config.speedBurst = 26
     local timing, timingBelow, sharedValue3, sharedValue4 =
         {
             northernmageshot = { first = 0, last = 1.05, exact = true, pad = 2.5, hardFirst = true },
@@ -55447,7 +55447,7 @@ components.movementCombat = function(context)
         return 22
     end
     context.speedBurst = function()
-        return 22
+        return 26
     end
     context.speedApply = function()
         local value = {}
