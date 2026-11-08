@@ -1,0 +1,51 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- Wait for the paths to exist
+local enemyFolder = Workspace:WaitForChild("dungeon")
+    :WaitForChild("bossRoom")
+    :WaitForChild("enemyFolder")
+
+local Event = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("replayDungeon")
+
+local BOSS_NAME = "Vytelus, the Dragon Lord"
+
+local function isBossPresent()
+    for _, child in ipairs(enemyFolder:GetChildren()) do
+        if child.Name == BOSS_NAME then
+            return true
+        end
+    end
+    return false
+end
+
+local function fireReplayDungeon()
+    Event:FireServer({
+        dungeonProgress = "inProgress",
+        dungeonStarted = true,
+        hardcore = false,
+        dungeonFinished = true,
+        dungeonName = "Gilded Skies",
+        isHardcore = false,
+        fightingBoss = false
+    })
+end
+
+-- State: has the boss been seen in this encounter?
+local bossSeen = false
+
+while true do
+    local present = isBossPresent()
+
+    if present then
+        -- Boss is in the folder — remember we've seen it
+        bossSeen = true
+    elseif bossSeen then
+        -- Boss was seen before and has now disappeared → fire remote
+        fireReplayDungeon()
+        bossSeen = false -- reset so it works again next time
+        task.wait(1)     -- small buffer before re-checking
+    end
+
+    task.wait(0.1)
+end
