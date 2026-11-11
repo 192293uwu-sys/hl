@@ -42,10 +42,9 @@ while true do
         bossSeen = true
     elseif bossSeen then
         -- Boss was seen before and has now disappeared → fire remote
-        task.wait(6)
+        task.wait(5)
         fireReplayDungeon()
         bossSeen = false -- reset so it works again next time
-        task.wait(1)     -- small buffer before re-checking
     end
 
     task.wait(0.1)
