@@ -5024,6 +5024,14 @@ components.coreSettings = function(context)
     config.speedCustom = false
     config.speedNormal = 24
     config.speedBurst = 26
+    config.vbSwiftSpeeds = true
+    config.vbSwiftNormal = 18
+    config.vbSwiftBurst = 28
+    config.vbRuneFirst = true
+    config.vbInvSkip = true
+    config.vbInvLead = 1.5
+    config.vbPureDrive = true
+    config.vbRushGame = true
     local timing, timingBelow, sharedValue3, sharedValue4 =
         {
             northernmageshot = { first = 0, last = 1.05, exact = true, pad = 2.5, hardFirst = true },
@@ -35643,7 +35651,8 @@ components.hazardReader = function(context)
                                     and type(enemyStyle.Value) == "string"
                                     and lowercase(enemyStyle.Value):find("boss", 1, true) ~= nil
                                 or helper42(entry)
-                                or context.GS_BOSSES ~= nil and context.GS_BOSSES[entry.Name] == true,
+                                or context.GS_BOSSES ~= nil and context.GS_BOSSES[entry.Name] == true
+                                or context.gsBonusIs ~= nil and context.gsBonusIs(entry),
                             melee = (
                                 key <= config.meleeMobMaxReach
                                 or lowercase(entry.Name):find("warrior", 1, true) ~= nil
@@ -55444,10 +55453,50 @@ components.movementCombat = function(context)
         return true
     end
     context.speedNormal = function()
-        return 24
+        if HLGS == true and context.gsBonusFind and context.gsBonusFind() ~= nil then
+            if capturedContext[1].vbSwiftSpeeds ~= false then
+                return capturedContext[1].vbSwiftNormal or 18
+            end
+        end
+        return 23
     end
     context.speedBurst = function()
-        return 26
+        if HLGS == true and context.gsBonusFind and context.gsBonusFind() ~= nil then
+            if capturedContext[1].vbSwiftSpeeds ~= false then
+                return capturedContext[1].vbSwiftBurst or 28
+            end
+        end
+        return 30
+    end
+    context.speedDanger = function()
+        if capturedContext[1].speedDangerOnly == false then
+            return true
+        elseif capturedContext[1].overdrive == true then
+            return true
+        end
+        local now = os.clock()
+        if HLGS == true and capturedContext[1].vbSwift ~= false then
+            if
+                not (
+                    capturedContext[3].charAt
+                    and now - capturedContext[3].charAt
+                        < (capturedContext[1].vbSwiftSpawnHold or 5)
+                )
+                and context.gsBonusFind
+                and context.gsBonusFind() ~= nil
+            then
+                return true
+            end
+        end
+        if
+            capturedContext[4]
+            and (capturedContext[4].dangerHere or 0) >= (capturedContext[1].dodgeMoveAt or 0.15)
+            or context.BB and context.BB.lethal == true
+            or capturedContext[2].reflex ~= nil
+        then
+            capturedContext[2].speedDangerUntil = now + (tonumber(capturedContext[1].speedDangerHold) or 1)
+        end
+        return now < (capturedContext[2].speedDangerUntil or 0)
     end
     context.speedApply = function()
         local value = {}
@@ -55519,7 +55568,7 @@ components.movementCombat = function(context)
         return false
     end
     context.walkNormal = function(humanoid)
-        if context.speedCustomOn() then
+        if context.speedCustomOn() and (not context.speedDanger or context.speedDanger()) then
             return context.speedNormal()
         end
         return math.min(humanoid and humanoid.WalkSpeed or 16, capturedContext[1].tweenWalk or 16)
@@ -55571,6 +55620,7 @@ components.movementCombat = function(context)
             if
                 capturedContext[1].lagBackNormal ~= false
                 and context.speedCustomOn()
+                and (not context.speedDanger or context.speedDanger())
                 and not (context.speedAbilityOn and context.speedAbilityOn(os.clock()))
             then
                 local character2 = localPlayer.Character
@@ -55589,7 +55639,7 @@ components.movementCombat = function(context)
         end
         value[5] = capturedContext[2]
         value[5].lagBackRestored = nil
-        local value3 = context.speedCustomOn()
+        local value3 = context.speedCustomOn() and (not context.speedDanger or context.speedDanger())
         if if value3 then capturedContext[2].destroyed else not value3 then
             if capturedContext[2].speedBuffHeld then
                 value[6] = capturedContext[2]
@@ -85112,10 +85162,32 @@ components.movementCombat = function(context)
     context.laneEscape = laneEscape
     local function helper57(argument, argument2, vector, vector2, argument3, argument4, argument5, argument6)
         local value = {}
+        -- Voidsbane: cut the final leg around live VB hazards before any other
+        -- path logic (matches the new build's p() helper).
+        if vector and vector2 and context.vbPathCut then
+            if context.gsBonusFind and context.gsBonusFind() ~= nil then
+                local vbCutOK, vbCutPoint = pcall(context.vbPathCut, vector, vector2, argument3)
+                if vbCutOK and vbCutPoint then
+                    vector2 = vbCutPoint
+                end
+            end
+        end
         if goalStuck(vector, vector2, os.clock()) then
             releaseMover(argument, argument2)
             setState((argument4 or "goal") .. ": can't get there - standing still")
             return false
+        end
+        -- Voidsbane pure drive: while a VB planner point is fresh, skip the
+        -- normal Rodin/GS path correction so the VB pathfinder stays authoritative.
+        local vbDriveNow = HLGS == true
+            and capturedContext[1].vbPureDrive ~= false
+            and capturedContext[3].vb ~= nil
+            and capturedContext[3].vb.noCutAt ~= nil
+            and os.clock() - capturedContext[3].vb.noCutAt < 0.05
+        capturedContext[2].vbDriveNow = vbDriveNow
+        if vbDriveNow then
+            helper2(argument, argument2, vector2, argument3, 1)
+            return true
         end
         local value2, value3 =
             context.BB and context.BB.orbLaneHit and context.BB.orbLaneHit(
@@ -98102,6 +98174,41 @@ components.movementCombat = function(context)
             end
         end
         local target = helper24(posSeen)
+        if context.gsBonusFind and context.gsBonusFind() ~= nil then
+            local vbRig = context.gsBonusFind()
+            local vbRoot = vbRig and (vbRig:FindFirstChild("HumanoidRootPart") or vbRig.PrimaryPart)
+            local vbHumanoid = vbRig and vbRig:FindFirstChildOfClass("Humanoid")
+            if vbRoot and vbHumanoid and vbHumanoid.Health > 0 then
+                local vbExisting = nil
+                for _, vbEnemy in ipairs(capturedContext[3].enemies or {}) do
+                    if vbEnemy.model == vbRig or vbEnemy.root == vbRoot then
+                        vbExisting = vbEnemy
+                        break
+                    end
+                end
+                if vbExisting then
+                    target = vbExisting
+                    target.isBoss = true
+                else
+                    target = {
+                        model = vbRig,
+                        root = vbRoot,
+                        humanoid = vbHumanoid,
+                        x = vbRoot.Position.X,
+                        y = vbRoot.Position.Y,
+                        z = vbRoot.Position.Z,
+                        vx = 0,
+                        vz = 0,
+                        isBoss = true,
+                        melee = false,
+                        isSpear = false,
+                        isMage = false,
+                        meleeDistance = 4,
+                        extent = math.max(vbRoot.Size.X, vbRoot.Size.Z) * 0.5,
+                    }
+                end
+            end
+        end
         combatBrain.target = target
         combatBrain.aim = nil
         if context.PB then
@@ -112838,47 +112945,124 @@ components.movementCombat = function(context)
                 value853, rodinGoodVel = pcall(context.finishRushReady, target, argument)
                 value282 = value853 and rodinGoodVel == true
             end
-            -- Voidsbane Vytelus: priority chain (same order as the newer build).
+            -- Voidsbane Vytelus: full main-loop integration (new.txt 128698-128993).
             if context.gsBonusFind and context.gsBonusFind() ~= nil then
-                local vbSteps = {
-                    { context.vbRune },
-                    { context.vbBeams },
-                    { context.vbBrain },
-                    { context.vbLance },
-                    { context.vbBreathPlan },
-                    { context.vbOut },
-                    { context.vbBreathRun },
-                    { context.vbRune, true },
-                    { context.vbFight, true },
-                }
-                for vbIndex = 1, #vbSteps, 1 do
-                    local vbFn, vbLethalOnly = vbSteps[vbIndex][1], vbSteps[vbIndex][2]
-                    if vbFn and (not vbLethalOnly or not (context.BB and context.BB.lethal == true)) then
-                        local vbOk, vbPoint, vbLabel, vbMode =
-                            pcall(vbFn, posSeen, argument)
-                        if vbOk and vbPoint then
-                            combatBrain.waypoints = nil
-                            if vbMode == "hold" then
-                                releaseMover(humanoid, value5)
-                            else
-                                helper57(
-                                    humanoid,
-                                    value5,
-                                    posSeen,
-                                    vbPoint,
-                                    capturedContext[1].burstMax or 28,
-                                    vbLabel
-                                )
-                            end
-                            setState(vbLabel or "VOIDSBANE")
-                            if target then
-                                helper47(humanoid, value5, target, argument)
-                            end
-                            return
-                        elseif not vbOk then
-                            capturedContext[2].lastError = "voidsbane: " .. tostring(vbPoint)
-                            capturedContext[2].lastErrorAt = argument
+                local vbRT = capturedContext[2]
+                local vbLethal = context.BB and context.BB.lethal == true
+
+                -- vbRuneFirst pre-check.
+                vbRT.vbRuneFirst = false
+                if
+                    HLGS == true
+                    and capturedContext[1].vbRuneFirst ~= false
+                    and not (
+                        capturedContext[1].vbBrain ~= false
+                        and context.vbBrain
+                        and not (capturedContext[3].vb and capturedContext[3].vb.off)
+                    )
+                    and capturedContext[3].vb
+                    and capturedContext[3].vb.rune
+                    and capturedContext[3].vb.glyph
+                    and context.vbRune
+                then
+                    local vbRuneState = capturedContext[3].vb.rune
+                    local vbRate = vbRuneState.rate
+                    if type(vbRate) == "number" and vbRate < 0 then
+                        local vbValue = math.clamp(
+                            vbRuneState.value
+                                + vbRate
+                                    * (workspaceService:GetServerTimeNow() - (vbRuneState.at or 0)),
+                            0,
+                            vbRuneState.max or 100
+                        )
+                        local vbGlyph = capturedContext[3].vb.glyph
+                        local vbD = math.sqrt((posSeen.X - vbGlyph.X) ^ 2 + (posSeen.Z - vbGlyph.Z) ^ 2)
+                        local vbChar = localPlayer.Character
+                        local vbHumanoid = vbChar and vbChar:FindFirstChildOfClass("Humanoid")
+                        local vbSpeed = math.max(
+                            16,
+                            (vbHumanoid and vbHumanoid.WalkSpeed or 16)
+                                * (capturedContext[1].vbRuneSpeedK or 0.85)
+                        )
+                        if vbValue / -vbRate < vbD / vbSpeed + (capturedContext[1].vbRuneMargin or 2) then
+                            vbRT.vbRuneFirst = true
                         end
+                    end
+                end
+
+                -- Skip timed hazards during the post-invulnerability window.
+                vbRT.vbInvNow = HLGS == true
+                    and capturedContext[1].vbInvSkip ~= false
+                    and vbRT.gsInvEnd ~= nil
+                    and argument < vbRT.gsInvEnd - (capturedContext[1].vbInvLead or 1.5)
+                    or false
+
+                local function vbRunStep(vbFn, vbLabelPrefix, vbAllowHold, vbWeight)
+                    if not vbFn then
+                        return false
+                    end
+                    local vbOK, vbPoint, vbLabel, vbMode = pcall(vbFn, posSeen, argument)
+                    if vbOK and vbPoint then
+                        combatBrain.waypoints = nil
+                        capturedContext[3].vb = capturedContext[3].vb or {}
+                        capturedContext[3].vb.noCutAt = argument
+                        if vbMode == "hold" and vbAllowHold then
+                            releaseMover(humanoid, value5)
+                        else
+                            helper57(
+                                humanoid,
+                                value5,
+                                posSeen,
+                                vbPoint,
+                                capturedContext[1].burstMax or 28,
+                                vbLabel
+                            )
+                        end
+                        setState(vbLabel or vbLabelPrefix or "VOIDSBANE")
+                        if target then
+                            helper47(humanoid, value5, target, argument)
+                        end
+                        return true
+                    elseif not vbOK then
+                        capturedContext[2].lastError = "voidsbane: " .. vbLabelPrefix .. ": " .. tostring(vbPoint)
+                        capturedContext[2].lastErrorAt = argument
+                    end
+                    return false
+                end
+
+                if vbRT.vbRuneFirst then
+                    if vbRunStep(context.vbRune, "rune first", true) then
+                        return
+                    end
+                end
+                if not vbRT.vbInvNow then
+                    if vbRunStep(context.vbBeams, "beams", true) then
+                        return
+                    end
+                end
+                if vbRunStep(context.vbBrain, "brain", true) then
+                    return
+                end
+                if not vbRT.vbInvNow then
+                    if vbRunStep(context.vbLance, "lance", true) then
+                        return
+                    end
+                    if vbRunStep(context.vbBreathPlan, "breath plan", false) then
+                        return
+                    end
+                    if capturedContext[1].vbOut ~= false and vbRunStep(context.vbOut, "out", false) then
+                        return
+                    end
+                    if vbRunStep(context.vbBreathRun, "breath run", false) then
+                        return
+                    end
+                end
+                if not vbLethal then
+                    if vbRunStep(context.vbRune, "rune", true) then
+                        return
+                    end
+                    if vbRunStep(context.vbFight, "fight", true) then
+                        return
                     end
                 end
             end
@@ -114320,9 +114504,16 @@ components.movementCombat = function(context)
                                 humanoid,
                                 value5,
                                 value1069,
-                                capturedContext[1].respawnRushBurst
-                                    or capturedContext[1].respawnRushSpeed
-                                    or 18,
+                                HLGS == true
+                                    and capturedContext[1].vbRushGame ~= false
+                                    and context.gsBonusFind
+                                    and context.gsBonusFind() ~= nil
+                                    and context.speedBurst()
+                                    or (
+                                        capturedContext[1].respawnRushBurst
+                                        or capturedContext[1].respawnRushSpeed
+                                        or 18
+                                    ),
                                 2
                             )
                             setState(
@@ -168454,6 +168645,12 @@ components.voidsbane = function(context)
     local H = context.CFG
     local N = context.RT
     local K = { zones = {}, connections = {} }
+    -- Share VB planner state with the old hazard reader so the main loop's
+    -- noCutAt / drive gating sees the same table this module updates.
+    K.vb = (context.RD and context.RD.vb) or {}
+    if context.RD then
+        context.RD.vb = K.vb
+    end
     local x = context.PROJECTILE_HINTS or {}
     local v = context.ATTACKS or {}
     local A = context.OURS or {}
