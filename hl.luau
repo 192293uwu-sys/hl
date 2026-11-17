@@ -56695,6 +56695,50 @@ components.movementCombat = function(context)
     end
     local function helper2(humanoid, progAt, argument, argument2, argument3, argument4)
         local value = {}
+        -- Voidsbane pure drive: bypass every legacy GS/Rodin correction while
+        -- the VB planner point is fresh (new.txt p() vbDriveNow behaviour).
+        if capturedContext[2].vbDriveNow and progAt and argument then
+            local vbHere, vbGoal = progAt.Position, argument
+            local vbDir = Vector3.new(vbGoal.X - vbHere.X, 0, vbGoal.Z - vbHere.Z)
+            movement.driving = true
+            setControlsEnabled(false)
+            local vbWalk = capturedContext[2].walkSpeed
+                or context.walkNormal and context.walkNormal(humanoid)
+                or math.min(humanoid.WalkSpeed, capturedContext[1].tweenWalk or 16)
+            if not capturedContext[2].walkSpeedBefore then
+                capturedContext[2].walkSpeed = vbWalk
+            end
+            helper(humanoid, (argument2 or 0) > vbWalk + 0.5, argument2)
+            if vbDir.Magnitude <= (argument3 or 1) then
+                movement.counts.arrive = movement.counts.arrive + 1
+                movement.cmdDir = nil
+                movement.cmdAt = capturedContext[2].brainNow
+                movementBoost.steer(nil)
+                humanoid:Move(Vector3.zero, false)
+                movement.stallSince = nil
+                return true
+            end
+            movement.counts.walked = movement.counts.walked + 1
+            local vbAutoRotate = os.clock() - movement.facedAt < 0.25 or hasCastFacing()
+            if humanoid.AutoRotate == vbAutoRotate then
+                humanoid.AutoRotate = not vbAutoRotate
+            end
+            local vbUnit = vbDir.Unit
+            movementBoost.steer(vbUnit)
+            if movementBoost.active() then
+                humanoid:Move(Vector3.zero, false)
+            else
+                local vbScale = math.clamp(
+                    (argument2 or vbWalk) / math.max(humanoid.WalkSpeed, 1),
+                    0.15,
+                    1
+                )
+                movement.cmdDir = vbUnit
+                movement.cmdAt = capturedContext[2].brainNow
+                humanoid:Move(vbUnit * vbScale, false)
+            end
+            return false
+        end
         if
             HLGS == true
             and argument
