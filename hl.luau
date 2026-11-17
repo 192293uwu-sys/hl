@@ -81922,6 +81922,9 @@ components.movementCombat = function(context)
     context.bonusBossRun = function()
         local val = workspaceService:FindFirstChild("dungeonName")
         if val then
+            if tostring(val.Value) == "Gilded Skies" then
+                return true
+            end
             if not (tostring(val.Value) == "Northern Lands") then
                 return false
             end
@@ -112834,6 +112837,50 @@ components.movementCombat = function(context)
             if capturedContext[1].finishAtOdin ~= false and context.finishRushReady and target then
                 value853, rodinGoodVel = pcall(context.finishRushReady, target, argument)
                 value282 = value853 and rodinGoodVel == true
+            end
+            -- Voidsbane Vytelus: priority chain (same order as the newer build).
+            if context.gsBonusFind and context.gsBonusFind() ~= nil then
+                local vbSteps = {
+                    { context.vbRune },
+                    { context.vbBeams },
+                    { context.vbBrain },
+                    { context.vbLance },
+                    { context.vbBreathPlan },
+                    { context.vbOut },
+                    { context.vbBreathRun },
+                    { context.vbRune, true },
+                    { context.vbFight, true },
+                }
+                for vbIndex = 1, #vbSteps, 1 do
+                    local vbFn, vbLethalOnly = vbSteps[vbIndex][1], vbSteps[vbIndex][2]
+                    if vbFn and (not vbLethalOnly or not (context.BB and context.BB.lethal == true)) then
+                        local vbOk, vbPoint, vbLabel, vbMode =
+                            pcall(vbFn, posSeen, argument)
+                        if vbOk and vbPoint then
+                            combatBrain.waypoints = nil
+                            if vbMode == "hold" then
+                                releaseMover(humanoid, value5)
+                            else
+                                helper57(
+                                    humanoid,
+                                    value5,
+                                    posSeen,
+                                    vbPoint,
+                                    capturedContext[1].burstMax or 28,
+                                    vbLabel
+                                )
+                            end
+                            setState(vbLabel or "VOIDSBANE")
+                            if target then
+                                helper47(humanoid, value5, target, argument)
+                            end
+                            return
+                        elseif not vbOk then
+                            capturedContext[2].lastError = "voidsbane: " .. tostring(vbPoint)
+                            capturedContext[2].lastErrorAt = argument
+                        end
+                    end
+                end
             end
             if capturedContext[1].odinV2 ~= false then
                 if context.OD then
@@ -143898,17 +143945,17 @@ components.statisticsWebhooks = function(context)
             run and run.dungeon or webhooks.lastDungeon, run and run.difficulty or webhooks.lastDifficulty
         local title, fields, value2, value3 =
             if argument
-                then ("%s   %s   %s"):format("Odin Reincarnation", argument, argument2 or "")
-                else "Odin Reincarnation",
+                then ("%s   %s   %s"):format(argument == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation", argument, argument2 or "")
+                else (argument == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation"),
             {},
             {
                 name = "Result",
-                value = "The bonus boss was lost - the game ends the run as DUNGEON FAILED. The run's own drops were posted at the Odin kill.",
+                value = "The bonus boss was lost - the game ends the run as DUNGEON FAILED. The run's own drops were posted at the last boss kill.",
                 inline = false,
             },
             { name = "Session" }
         value3.value, value3.inline =
-            ("%d Rodin clear%s, %d failed"):format(
+            ("%d bonus-boss clear%s, %d failed"):format(
                 webhooks.rodinClears or 0,
                 (webhooks.rodinClears or 0) == 1 and "" or "s",
                 webhooks.rodinFails
@@ -143923,7 +143970,7 @@ components.statisticsWebhooks = function(context)
             embeds = {
                 {
                     title = title,
-                    description = "**RODIN FAILED**"
+                    description = "**BONUS BOSS FAILED**"
                         .. (#value > 0 and "   " .. table.concat(value, "   ") or ""),
                     color = color2,
                     fields = fields,
@@ -144073,14 +144120,14 @@ components.statisticsWebhooks = function(context)
                     helper32("Bag", ("%d/%d"):format(bag, helper21()))
                 end
             end
-            helper32("Session", ("%d Rodin clear%s"):format(clears, clears == 1 and "" or "s"))
+            helper32("Session", ("%d bonus-boss clear%s"):format(clears, clears == 1 and "" or "s"))
             local dungeon, difficulty =
                 run and run.dungeon or webhooks.lastDungeon, run and run.difficulty or webhooks.lastDifficulty
             helper32 = {
                 title = if dungeon
-                    then ("%s   %s   %s"):format("Odin Reincarnation", dungeon, difficulty or "")
-                    else "Odin Reincarnation",
-                description = "**RODIN CLEARED**"
+                    then ("%s   %s   %s"):format(dungeon == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation", dungeon, difficulty or "")
+                    else (dungeon == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation"),
+                description = "**BONUS BOSS CLEARED**"
                     .. (#content > 0 and "   " .. table.concat(content, "   ") or ""),
                 color = value12 and helper8(true, value12) or sharedValue7,
                 fields = fields,
@@ -144865,17 +144912,17 @@ components.statisticsWebhooks = function(context)
         end
         local value23, content = #fields + 1, { name = "Session" }
         content.value, content.inline, fields[value23] =
-            ("%d Rodin clear%s"):format(value4, value4 == 1 and "" or "s"), true, content
+            ("%d bonus-boss clear%s"):format(value4, value4 == 1 and "" or "s"), true, content
         value23 = argument[1].d
         argument = {
             title = if value23.dungeon
                 then ("%s   %s   %s"):format(
-                    "Odin Reincarnation",
+                    (tostring(value23.dungeon) == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation"),
                     tostring(value23.dungeon),
                     tostring(value23.difficulty or "")
                 )
-                else "Odin Reincarnation",
-            description = "**RODIN CLEARED**"
+                else (tostring(value23.dungeon) == "Gilded Skies" and "Voidsbane Vytelus" or "Odin Reincarnation"),
+            description = "**BONUS BOSS CLEARED**"
                 .. (#value16 > 0 and "   " .. table.concat(value16, "   ") or ""),
             color = value15 and helper8(true, value15) or sharedValue7,
             fields = fields,
@@ -145115,7 +145162,7 @@ components.statisticsWebhooks = function(context)
         if context.log then
             context.log(
                 "Webhook",
-                ("sent %d Rodin clear%s left unsent"):format(#value12, #value12 == 1 and "" or "s")
+                ("sent %d bonus-boss clear%s left unsent"):format(#value12, #value12 == 1 and "" or "s")
             )
         end
     end
@@ -149557,10 +149604,10 @@ components.interfaceMainLoop = function(context)
                 end
             end)
             helper66("rodinClear", function()
-                notify("success", "Rodin cleared", "The bonus boss is down.")
+                notify("success", "Bonus boss cleared", "Odin Reincarnation or Voidsbane Vytelus is down.")
             end)
             helper66("rodinFail", function()
-                notify("error", "Rodin failed", "The bonus boss got away.")
+                notify("error", "Bonus boss failed", "Odin Reincarnation or Voidsbane Vytelus got away.")
             end)
         end
         local parent3
@@ -149794,7 +149841,7 @@ components.interfaceMainLoop = function(context)
             "Stay for the bonus boss",
             "bonusBoss",
             1,
-            "Northern Lands Nightmare only (the one run with a bonus boss): vote yes when the vote comes up, stay in the room for it, and hold the replay until it is dead."
+            "Northern Lands Nightmare (Odin) and Gilded Skies (Voidsbane): vote yes when the vote comes up, stay in the room for it, and hold the replay until it is dead."
         )
         runsThisAccount = Instance.new("Frame")
         runsThisAccount.Name, runsThisAccount.BackgroundTransparency, runsThisAccount.AutomaticSize, runsThisAccount.Size =
@@ -152616,10 +152663,10 @@ components.interfaceMainLoop = function(context)
             )
             helper15(
                 value73.content,
-                "Rodin clears",
+                "Bonus-boss clears",
                 "whRodin",
                 2,
-                "A message every time Odin Reincarnation, the bonus boss, is beaten."
+                "A message every time a bonus boss (Odin Reincarnation, Voidsbane Vytelus) is beaten."
             )
             helper15(value73.content, "Win rate", "whRatio", 3, "Wins as a percentage of the session's runs.")
             helper15(
@@ -168400,6 +168447,16689 @@ components.interfaceMainLoop = function(context)
         end
     end)
 end
+components.voidsbane = function(context)
+    -- Voidsbane Vytelus (Gilded Skies bonus boss) logic ported from the newer build.
+    -- Aliases mirror the newer build so the transplanted code behaves identically.
+    local k = context
+    local H = context.CFG
+    local N = context.RT
+    local K = { zones = {}, connections = {} }
+    local x = context.PROJECTILE_HINTS or {}
+    local v = context.ATTACKS or {}
+    local A = context.OURS or {}
+    local a = context.Workspace
+    local i = context.ReplicatedStorage
+    local j = context.Players
+    local J = context.LocalPlayer
+    local X = context.log or function() end
+    local w = context.logT or function() end
+    local U = context.isOurs or function() return false end
+    local D = context.flatDistance
+    local e = string.lower
+    local P = math.huge
+    local n = math.sqrt
+    local q = math.abs
+    local o = math.max
+    local r = math.min
+    local L = setmetatable
+    local b = { __mode = "k" }
+    local HLGS = game.PlaceId == 101088859550383
+
+    -- Server-clock helper used by the VB event parser.
+    local function z()
+        if H.clockServerTime ~= false then
+            return a:GetServerTimeNow()
+        end
+        local d = K.timeSync
+        if d then
+            local ok, t = pcall(d.GetTime, d)
+            if ok and type(t) == "number" then
+                return t
+            end
+        end
+        return a:GetServerTimeNow()
+    end
+
+    -- Mirror zones into both the old reader and the VB private zone list so
+    -- vbThreats sees them without disturbing existing behaviour.
+    local vbOldAddZone, vbOldDropZones = context.addZone, context.dropZones
+    local vbAddZone = function(zone)
+        if not zone.bubbleKeep then
+            return
+        end
+        if N.gsInvEnd and zone.untilAt and zone.untilAt <= N.gsInvEnd then
+            return
+        end
+        K.zones[#K.zones + 1] = zone
+        K.boxGen = (K.boxGen or 0) + 1
+        if #K.zones > (H.zoneCap or 900) then
+            table.remove(K.zones, 1)
+        end
+        if vbOldAddZone then
+            vbOldAddZone(zone)
+        end
+    end
+    local vbDropZones = function(prefix, before)
+        for index = #K.zones, 1, -1 do
+            local zone = K.zones[index]
+            if zone.madeAt and zone.madeAt < before
+                and zone.name:sub(1, #prefix) == prefix then
+                table.remove(K.zones, index)
+            end
+        end
+        if vbOldDropZones then
+            vbOldDropZones(prefix, before)
+        end
+    end
+    context.addZone, context.dropZones = vbAddZone, vbDropZones
+        local function A()
+          if K.rodinRig then
+            if K.rodinRig.Parent then
+              return true
+            end
+          end
+          if k.gsBonusFind then
+            if k.gsBonusFind() ~= nil then
+              return true
+            end
+          end
+          local L = a:FindFirstChild("dungeonName")
+          if L ~= nil then
+            if not (tostring(L.Value) == "Northern Lands") then
+              return false
+            end
+          else
+            return false
+          end
+          L = a:FindFirstChild("bonusBossStatus")
+          if L ~= nil then
+            if tostring(L.Value or "") ~= "" then
+              return true
+            end
+          end
+          L = a:FindFirstChild("bonusBossVotingActive")
+          return L ~= nil and L.Value == true
+        end
+        k.gsBonusIs = function(L)
+          if L == nil then
+            return false
+          elseif L.Parent == nil then
+            return false
+          elseif L.Parent:IsA("Workspace") then
+            if not (L:IsA("Model")) then
+              return false
+            end
+          else
+            return false
+          end
+          if j:GetPlayerFromCharacter(L) then
+            return false
+          end
+          if not (L:FindFirstChildOfClass("Humanoid")) then
+            return false
+          end
+          if e(L.Name):find("voidsbane", 1, true) then
+            return true
+          end
+          local I = a:FindFirstChild("dungeonName")
+          if I ~= nil then
+            if not (tostring(I.Value) == "Gilded Skies") then
+              return false
+            end
+          else
+            return false
+          end
+          I = L:FindFirstChild("enemyStyle")
+          return I ~= nil and type(I.Value) == "string" and e(I.Value):find("boss", 1, true) ~= nil
+        end
+        k.vbWall = function()
+          local L = os.clock()
+          if L - (K.vbWallAt or -math.huge) < 1 then
+            return
+          end
+          K.vbWallAt = L
+          L = K.vbWallPart
+          if L then
+            if L.Parent then
+              if math.abs(L.Size.Y - 158) < 0.5 then
+                return
+              end
+            end
+          end
+          L = Vector3.new(1483.3, 135.9, -1072.32)
+          for I, I in ipairs(a:GetChildren()) do
+            if I:IsA("BasePart") then
+              if I.Name == "NorthernWall" then
+                if math.abs(I.Size.X - 214.85) < 0.2 then
+                  if math.abs(I.Size.Y - 22) < 0.2 then
+                    if math.abs(I.Size.Z - 145.26) < 0.2 then
+                      if (I.Position - L).Magnitude < 2 then
+                        I.Size = Vector3.new(214.85, 158, 145.26)
+                        I.CFrame = CFrame.new(
+                          1439.0188,
+                          135.9,
+                          -1020.7152,
+                          -0.7589,
+                          -0.6512,
+                          0,
+                          0,
+                          0,
+                          1,
+                          -0.6512,
+                          0.7589,
+                          0
+                        )
+                        K.vbWallPart = I
+                        K.boxGen = (K.boxGen or 0) + 1
+                        w(
+                          "walls",
+                          2,
+                          "Walls",
+                          "bonus boss up: grew the GS wall at (1483, -1072) to 158 (Studio HII)"
+                        )
+                        return
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+        k.gsBonusFind = function()
+          local L = a:FindFirstChild("dungeonName")
+          if L ~= nil then
+            if not (tostring(L.Value) == "Gilded Skies") then
+              return nil
+            end
+          else
+            return nil
+          end
+          L = K.gsBonusRig
+          if L then
+            if L.Parent ~= nil then
+              if L.Parent:IsA("Workspace") then
+                local I = L:FindFirstChildOfClass("Humanoid")
+                if I then
+                  if I.Health > 0 then
+                    pcall(k.vbWall)
+                    return L
+                  end
+                end
+              end
+            end
+          end
+          L = os.clock()
+          if L - (K.gsBonusAt or -math.huge) < 1 then
+            return nil
+          end
+          K.gsBonusAt = L
+          K.gsBonusRig = nil
+          for L, I in ipairs(a:GetChildren()) do
+            if I:IsA("Model") then
+              if k.gsBonusIs(I) then
+                L = I:FindFirstChildOfClass("Humanoid")
+                if L then
+                  if L.Health > 0 then
+                    K.gsBonusRig = I
+                    pcall(k.vbWall)
+                    return I
+                  end
+                end
+              end
+            end
+          end
+          return nil
+        end
+        k.rodinAlive = function()
+          if k.gsBonusFind() ~= nil then
+            return true
+          end
+          local L = K.rodinRig
+          if L then
+            if L.Parent then
+              local I = L:FindFirstChildOfClass("Humanoid")
+              if I then
+                if I.Health > 0 then
+                  return true
+                end
+              end
+            end
+          end
+          L = a:FindFirstChild("Odin Reincarnation")
+          if L ~= nil then
+            if L:IsA("Model") then
+              local I = L:FindFirstChildOfClass("Humanoid")
+              if I then
+                if I.Health > 0 then
+                  K.rodinRig = L
+                  return true
+                end
+              end
+            end
+          end
+          local L, I = os.clock(), K.rodinCands
+          if I == nil or L - (K.rodinCandsAt or -P) >= 1 then
+            I = {}
+            for d, d in ipairs(a:GetChildren()) do
+              if d:IsA("Model") then
+                if e(d.Name):find("reincarnation", 1, true) then
+                  I[#I + 1] = d
+                end
+              end
+            end
+            K.rodinCands = I
+            K.rodinCandsAt = L
+          else
+          end
+          for d = 1, #I, 1 do
+            L = I[d]
+            if L.Parent == a then
+              d = L:FindFirstChildOfClass("Humanoid")
+              if d then
+                if d.Health > 0 then
+                  K.rodinRig = L
+                  return true
+                end
+              end
+            end
+          end
+          return false
+        end
+          function k.vbEvent(l, v, U, s, D)
+            local e = H.vbPad or 2
+            local function P(n)
+              return os.clock() + (tonumber(n) - a:GetServerTimeNow())
+            end
+            local function n(q, r, L, b, I, d, Y)
+              if typeof(r) ~= "Vector3" then
+                return
+              elseif typeof(L) ~= "Vector3" then
+                return
+              end
+              local F = Vector3.new(L.X, 0, L.Z)
+              if F.Magnitude < 0.001 then
+                return
+              end
+              F = F.Unit
+              L = Vector3.new(r.X, r.Y + 4, r.Z)
+              r = {
+                name = q,
+                kind = "zone",
+                bubbleKeep = true,
+                madeAt = os.clock(),
+                weight = 1,
+                cframe = CFrame.lookAt(L, L + F),
+                size = Vector3.new(b, 16, I),
+                from = d,
+                untilAt = Y,
+              }
+              k.addZone(r)
+              return r
+            end
+            local function q(r, L, b, I, d)
+              if typeof(L) ~= "Vector3" then
+                return
+              end
+              local Y = {
+                name = r,
+                kind = "zone",
+                bubbleKeep = true,
+                madeAt = os.clock(),
+                weight = 1,
+                round = true,
+                cframe = CFrame.new(L.X, L.Y + 4, L.Z),
+                size = Vector3.new(b * 2, 16, b * 2),
+                from = I,
+                untilAt = d,
+              }
+              k.addZone(Y)
+              return Y
+            end
+            local r = K.vb or {}
+            K.vb = r
+            if
+              l == "Bars"
+              and H.vbBars ~= false
+              and type(v) == "table"
+              and type(v.cfg) == "table"
+              and type(v.bars) == "table"
+            then
+              local L = v.cfg
+              r.bars = r.bars or {}
+              for b, I in pairs(v.bars) do
+                local d = tonumber(b) or 1
+                local Y, F, C, Q, O =
+                  v.t0 + L.warn + (L.step or 0) * (d - 1),
+                  (L.hitHalf or 4) * 2 + e * 2,
+                  L.length or 300,
+                  L.blinkAt or 2.5,
+                  L.blink or 1.9
+                d, b =
+                  n(
+                    "vb bars",
+                    I.c,
+                    I.d,
+                    F,
+                    C,
+                    P(Y) - (H.vbBarLead or 0.4),
+                    P(Y + Q) + (H.vbBarPurpleIn or 0.35)
+                  ),
+                  n(
+                    "vb bars",
+                    I.c,
+                    I.d,
+                    F,
+                    C,
+                    P(Y + Q + O) - (H.vbBarPurpleOut or 0.6),
+                    P(Y + L.live) + 0.1
+                  )
+                if d then
+                  r.bars[#r.bars + 1] = d
+                end
+                if b then
+                  r.bars[#r.bars + 1] = b
+                end
+              end
+            elseif l == "BarsClear" then
+              local L = os.clock()
+              for b, b in ipairs(r.bars or {}) do
+                if b.untilAt > L then
+                  b.untilAt = L
+                end
+              end
+              r.bars = {}
+            elseif l == "Breath" and type(v) == "table" then
+              r.breath = v
+              if H.vbBreathEarly ~= false then
+                if tonumber(v.t0) then
+                  local L = type(v.launches) == "table" and v.launches or {}
+                  local b = tonumber(L[#L]) or 7.4
+                  r.breathRunUntil = P(v.t0 + b + ((v.timing or {}).breathFlight or 1.1)) + 0.3
+                  r.runHX = nil
+                  r.runHZ = nil
+                  r.brGoal = nil
+                end
+              end
+            elseif
+              l == "BreathTarget"
+              and r.breath
+              and typeof(U) == "Instance"
+              and U.Name == J.Name
+            then
+              local L = r.breath
+              local b, I, d =
+                L.timing or {}, tonumber, L.launches and (L.launches[v] or L.launches[tostring(v)])
+              local Y, F = I(d), U:FindFirstChild("HumanoidRootPart")
+              if Y then
+                if F then
+                  I = L.t0 + Y + (b.breathFlight or 1.1)
+                  r.breathRunUntil = P(
+                    L.t0 + (L.launches[#L.launches] or 7.4) + (b.breathFlight or 1.1)
+                  ) + 0.3
+                  if H.vbBreathAim ~= false then
+                    local L, Y = F.AssemblyLinearVelocity, H.vbBreathLead or 0.33
+                    local C, Q = L.X * Y, L.Z * Y
+                    d = math.sqrt(C * C + Q * Q)
+                    if d > 12 then
+                      C, Q = C / d * 12, Q / d * 12
+                    else
+                    end
+                    L = q(
+                      "vb breath pool",
+                      Vector3.new(F.Position.X + C, F.Position.Y, F.Position.Z + Q),
+                      (b.burstRadius or 21) + e + (H.vbBreathProvExtra or 0),
+                      P(I) - (H.vbBreathProvFrom or 0.55),
+                      P(I) + 0.3
+                    )
+                    if L then
+                      L.prov = true
+                    end
+                  end
+                end
+              end
+            elseif
+              l == "BreathTarget"
+              and r.breath
+              and typeof(U) == "Instance"
+              and U.Name ~= J.Name
+              and H.vbBreathOthers ~= false
+            then
+              local L = r.breath
+              local b, I, d =
+                L.timing or {}, tonumber, L.launches and (L.launches[v] or L.launches[tostring(v)])
+              local Y, F = I(d), U:FindFirstChild("HumanoidRootPart")
+              if Y then
+                if F then
+                  I = L.t0 + Y + (b.breathFlight or 1.1)
+                  d = q(
+                    "vb breath pool",
+                    F.Position,
+                    (b.burstRadius or 21) + e,
+                    P(I) - (H.vbBreathProvFrom or 0.55),
+                    P(I) + 0.3
+                  )
+                  if d then
+                    d.prov = true
+                  end
+                end
+              end
+            elseif l == "BreathShot" and r.breath and typeof(U) == "Vector3" then
+              local L = r.breath
+              local b, I, d =
+                L.timing or {}, tonumber, L.launches and (L.launches[v] or L.launches[tostring(v)])
+              local Y = I(d)
+              if Y then
+                I = L.t0 + Y + (b.breathFlight or 1.1)
+                q(
+                  "vb breath pool",
+                  U,
+                  (b.burstRadius or 21) + e + (H.vbBreathExtra or 3),
+                  P(I) - (H.vbBreathFrom or 0.55),
+                  (P(I + (b.burstDelay or 0.55) + (H.vbBreathPoolLife or 0.5)))
+                )
+                if H.vbBreathCore ~= false then
+                  q(
+                    "vb breath pool",
+                    U,
+                    (H.vbBreathCoreR or 17) + e,
+                    P(I + 1.05),
+                    (P(I + (b.burstDelay or 0.55) + (b.poolLife or 8)))
+                  )
+                end
+              end
+            elseif l == "ThrowLock" and r.breath and typeof(v) == "Vector3" then
+              local L = r.breath
+              local b = L.path or {}
+              local I, d = b.throwT or {}, L.t0 + (b.stopTime or 8)
+              q(
+                "vb throw inner",
+                v,
+                (I.innerHit or 30.64) + e,
+                P(d + (I.strike or 5.6)) - (H.vbThrowLead or 3.6),
+                P(d + (I.strike or 5.6)) + 0.4
+              )
+              q(
+                "vb throw outer",
+                v,
+                (I.outerHit or 57.71) + e,
+                P(d + (I.strike or 5.6) + 0.2),
+                P(d + (I.slam or 7.6)) + 0.5
+              )
+            elseif l == "Passive" and type(v) == "table" and typeof(v.glyph) == "Vector3" then
+              r.glyph = v.glyph
+            elseif l == "RuneSync" and tonumber(v) then
+              r.rune = {
+                value = tonumber(v),
+                rate = tonumber(U) or 0,
+                at = tonumber(s) or a:GetServerTimeNow(),
+                max = tonumber(D) or 45,
+              }
+            elseif
+              l == "Beams"
+              and type(v) == "table"
+              and type(v.cfg) == "table"
+              and type(v.beams) == "table"
+            then
+              r.beams = v
+              local U = v.cfg
+              for s, D in pairs(v.beams) do
+                if typeof(D.center) == "Vector3" then
+                  if tonumber(D.startAt) then
+                    s = U.closeStart + U.closeTime
+                    local L, b =
+                      s - ((U.greenLead or 0.5) - (U.greenLate or 0.2)),
+                      s + (U.greenTime or 3.4) + (U.convergeTime or 1.2) + 0.2
+                    q(
+                      "vb beams blast",
+                      D.center,
+                      (U.blastRadius or 65) + e + (H.vbBlastExtra or 3),
+                      P(D.startAt + L) + 0.3,
+                      P(D.startAt + b) + 0.5
+                    )
+                  end
+                end
+              end
+            elseif
+              l == "Lance"
+              and type(v) == "table"
+              and type(v.rings) == "table"
+              and typeof(v.origin) == "Vector3"
+            then
+              r.lance = v
+            elseif l == "Meteor" and type(v) == "table" then
+              r.meteor = v
+            elseif l == "MeteorLock" and type(v) == "table" and typeof(v.point) == "Vector3" then
+              local U, s = r.meteor and r.meteor.cfg or {}, P(v.impactAt)
+              q(
+                "vb meteor",
+                v.point,
+                (U.outerHit or 40.5) + e,
+                s - (H.vbMeteorLead or 2.5),
+                s + 0.8
+              )
+              if v.boss == true then
+                q(
+                  "vb meteor keepout",
+                  v.point,
+                  H.vbOrbFar or 75,
+                  s - (H.vbKeepLead or 2.5),
+                  s + (H.vbKeepFor or 0.8)
+                )
+              end
+            elseif l == "MeteorLine" and type(v) == "table" and type(v.cfg) == "table" then
+              local U, s, D = v.cfg, Vector3.new(v.dir.X, 0, v.dir.Z).Unit, H.vbLineSeg or 80
+              for q = 0, math.ceil(U.length / D) - 1, 1 do
+                n(
+                  "vb meteor line",
+                  v.from + s * (D * q + D / 2),
+                  s,
+                  U.width + e * 2,
+                  D + 2,
+                  P(v.t0 + (H.vbLineFrom or 0)),
+                  P(v.t0 + U.warn + U.live + (U.fade or 0.6)) + 0.2
+                )
+              end
+              D = H.vbLineBack or 12
+              if D > 0 then
+                n(
+                  "vb meteor line",
+                  v.from - s * (D / 2),
+                  s,
+                  U.width + e * 2,
+                  D + 2,
+                  P(v.t0 + (H.vbLineFrom or 0)),
+                  P(v.t0 + U.warn + U.live + (U.fade or 0.6)) + 0.2
+                )
+              end
+            elseif l == "MeteorChildren" and type(v) == "table" and type(v.cfg) == "table" then
+              local U, s = v.cfg, Vector3.new(v.dir.X, 0, v.dir.Z).Unit
+              local D = Vector3.new(-s.Z, 0, s.X)
+              for q = 1, U.count, 1 do
+                local L, b = tonumber, v.yaws and (v.yaws[q] or v.yaws[tostring(q)])
+                local I = L(b) or 0
+                b, L =
+                  CFrame.Angles(0, I, 0):VectorToWorldSpace(D),
+                  v.t0 + (q - 1) * (U.stagger or 0.1) + U.warn
+                n(
+                  "vb meteor children",
+                  v.from + s * (q * U.spacing),
+                  b,
+                  U.width + e * 2,
+                  U.length,
+                  P(v.t0 + (q - 1) * (U.stagger or 0.1) + (H.vbChildFrom or 0)) - 0.1,
+                  P(L + U.live) + 0.25
+                )
+              end
+            elseif
+              l == "MeteorOrbs"
+              and type(v) == "table"
+              and type(v.cfg) == "table"
+              and type(v.dirs) == "table"
+            then
+              if typeof(v.arenaCenter) == "Vector3" then
+                r.arenaC = v.arenaCenter
+              end
+              local U = v.cfg
+              local s = (U.hit or 12) + e
+              for D, e in pairs(v.dirs) do
+                if typeof(e) == "Vector3" then
+                  D = Vector3.new(e.X, 0, e.Z)
+                  if D.Magnitude > 0.001 then
+                    D = D.Unit
+                    k.addZone({
+                      name = "vb meteor orb",
+                      moving = true,
+                      ground = true,
+                      kind = "path",
+                      bubbleKeep = true,
+                      weight = 1,
+                      ox = v.center.X,
+                      oy = v.center.Y - 7,
+                      oz = v.center.Z,
+                      dx = D.X,
+                      dz = D.Z,
+                      speed = U.speed,
+                      offset = 0,
+                      halfW = s,
+                      halfL = s,
+                      halfH = 8,
+                      r = s,
+                      from = P(v.t0) - 0.3,
+                      untilAt = P(v.t0 + U.life),
+                      pathStart = P(v.t0),
+                      madeAt = os.clock(),
+                    })
+                  end
+                end
+              end
+            end
+            if l == "XSpin" then
+              if type(v) == "table" then
+                if type(v.cfg) == "table" then
+                  if typeof(v.forward) == "Vector3" then
+                    if typeof(v.point) == "Vector3" then
+                      r.xspin = r.xspin or {}
+                      r.xspin[#r.xspin + 1] = v
+                      if not r.xsLoop then
+                        r.xsLoop = true
+                        task.spawn(function()
+                          while true do
+                            local l = N.destroyed
+                            if not ((if l then not l else r.xspin) and #r.xspin > 0) then
+                              break
+                            end
+                            pcall(k.vbXSpinTick)
+                            task.wait(H.vbXsEvery or 0.1)
+                          end
+                          r.xsLoop = false
+                          pcall(k.dropZones, "vb xspin", math.huge)
+                        end)
+                      end
+                    end
+                  end
+                end
+              end
+            end
+            K.boxGen = (K.boxGen or 0) + 1
+          end
+          function k.vbXSpinTick()
+            local l = K.vb
+            if l then
+              if not l.xspin then
+                return
+              end
+            else
+              return
+            end
+            local v, U, s = os.clock(), a:GetServerTimeNow(), J.Character
+            local D, e, P, n = s and (s:FindFirstChild("HumanoidRootPart")), 0, 0, 0
+            if D then
+              e, P, n = D.Position.X, D.Position.Y, D.Position.Z
+            else
+            end
+            k.dropZones("vb xspin", math.huge)
+            local q, r, L, b =
+              H.vbPad or 2, {}, H.vbXsAhead or { 0, 0.25, 0.5, 0.75, 1, 1.25 }, H.vbXsNear or 90
+            for I, d in ipairs(l.xspin) do
+              I = d.cfg
+              if U - d.t0 <= I.flight + 0.2 then
+                r[#r + 1] = d
+                s = Vector3.new(d.forward.X, 0, d.forward.Z).Unit
+                local Y, F, C, Q = -s.Z, s.X, I.hit or 24, I.spacing / 1.4142135623730951
+                for O, V in ipairs(L) do
+                  D = U + V - d.t0
+                  if D >= 0 and D <= I.flight then
+                    O = d.start + d.dir * I.turnRate * D
+                    local U, L, p = math.cos(O), math.sin(O), -I.back + I.speed * D
+                    local D, O = d.point.X + s.X * p, d.point.Z + s.Z * p
+                    for t = 0, I.arm, 1 do
+                      for W = 1, t == 0 and 1 or 4, 1 do
+                        local G, h = 0, 0
+                        if t > 0 then
+                          local B, S = (W == 1 or W == 3) and 1 or -1, W <= 2 and 1 or -1
+                          G, h = B * Q * t, S * Q * t
+                        else
+                        end
+                        W, p = G * U - h * L, G * L + h * U
+                        local U = d.point.Y + I.lift + p - P
+                        if math.abs(U) < C then
+                          local P, L, Q = math.sqrt(C * C - U * U), D + Y * W, O + F * W
+                          if (L - e) ^ 2 + (Q - n) ^ 2 <= (b + P) ^ 2 then
+                            local U = H.vbXsBack or 5
+                            local D = Vector3.new(L - s.X * U, d.point.Y + 4, Q - s.Z * U)
+                            local e = {
+                              name = "vb xspin",
+                              kind = "zone",
+                              bubbleKeep = true,
+                              madeAt = v,
+                              weight = 1,
+                              cframe = CFrame.lookAt(D, D + s),
+                              size = Vector3.new(
+                                P * 2 + q * 2,
+                                16,
+                                (I.thick or 8) + I.speed * 0.25 + q * 2 + U * 2
+                              ),
+                              from = v + V - 0.15,
+                              untilAt = v + V + 0.3 + (H.vbXsLate or 0.4),
+                            }
+                            k.addZone(e)
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+            end
+            l.xspin = r
+            K.boxGen = (K.boxGen or 0) + 1
+          end
+          local l = {
+            ["vb beam drop"] = true,
+            ["vb bars"] = true,
+            ["vb meteor line"] = true,
+            ["vb meteor children"] = true,
+            ["vb breath aim"] = true,
+            ["vb breath pool"] = true,
+            ["vb throw inner"] = true,
+            ["vb throw outer"] = true,
+            ["vb meteor"] = true,
+            ["vb beams blast"] = true,
+            ["vb meteor keepout"] = true,
+            ["vb xspin"] = true,
+          }
+          local function v(U, s, D, e)
+            if U <= 0 then
+              return 0
+            end
+            if if s then s <= 1 else not s then
+              return math.log(1 + U / 0.6) * 52
+            end
+            local P, n = 0.6 * s, e * s
+            s = math.min(U, n)
+            return math.log(1 + e / 0.6)
+              * 52
+              * ((1 - D) * s / n + D * math.log(1 + s / P) / math.log(1 + n / P))
+          end
+          local function U(s, D, e, P)
+            local n, q = D - s.cx, e - s.cz
+            if s.r then
+              return n * n + q * q <= (s.r + P) ^ 2
+            end
+            if not s.ax then
+              return false
+            end
+            return math.abs(n * s.ax + q * s.az) <= s.ha + P
+              and math.abs(n * s.bx + q * s.bz) <= s.hb + P
+          end
+          local function s(D, e, P)
+            local n, q = e - D.cx, P - D.cz
+            if D.r then
+              return D.r - math.sqrt(n * n + q * q)
+            end
+            if not D.ax then
+              return -math.huge
+            end
+            return math.min(
+              D.ha - math.abs(n * D.ax + q * D.az),
+              D.hb - math.abs(n * D.bx + q * D.bz)
+            )
+          end
+          local function D(e, P, n, q, r)
+            if r <= 0 then
+              return false
+            elseif q <= 0 then
+              return false
+            end
+            local L, b = math.atan2(n, P), math.atan(r / q)
+            for P = 1, #e, 1 do
+              if
+                math.abs((L - e[P] + 3.141592653589793) % 6.283185307179586 - 3.141592653589793) <= b
+              then
+                return true
+              end
+            end
+            return false
+          end
+          local function e(P)
+            local n = K.vb and K.vb.lance
+            if n then
+              if typeof(n.origin) ~= "Vector3" then
+                return nil
+              end
+            else
+              return nil
+            end
+            local q, r = P - a:GetServerTimeNow(), n.timing or {}
+            local L, b = r.ringLife or 3.33, {}
+            for I, d in pairs(n.rings or {}) do
+              local Y, F = d.life or L, n.t0 + (d.launch or 0) + q
+              if F + Y > P then
+                I = {}
+                for P, P in pairs(d.doors or {}) do
+                  I[#I + 1] = tonumber(P)
+                end
+                local P, q = d.slow or 1, d.steady or 0
+                b[#b + 1] =
+                  { L0 = F, life = Y, slow = P, steady = q, life0 = L, doors = I, rMax = v(
+                    Y,
+                    P,
+                    q,
+                    L
+                  ) }
+              end
+            end
+            return b, n.origin.X, n.origin.Z, r.doorHalfWidth or 9
+          end
+          function k.vbThreats(P, n)
+            local q = {
+              sp = H.vbPlanSpeed or 24,
+              zs = {},
+              orbs = {},
+              band = H.vbRingBand or 3.5,
+              bodyD = H.vbRingBody or 2.5,
+              m = H.vbPlanPad or 1,
+              m2 = H.vbPlanSpotPad or 1.5,
+              hard = H.vbPlanHard or 2.5,
+              hold = H.vbPlanHold or 3,
+              step = H.vbPlanStep or 2,
+            }
+            for r, r in ipairs(K.zones) do
+              if l[r.name] then
+                if r.cx then
+                  if r.untilAt > P then
+                    if r.from - P <= 6 then
+                      if n then
+                        if not n[r.name] then
+                          q.zs[#q.zs + 1] = r
+                        end
+                      else
+                        q.zs[#q.zs + 1] = r
+                      end
+                    end
+                  end
+                end
+              end
+              if r.name == "vb meteor orb" then
+                if r.moving then
+                  if r.untilAt > P then
+                    q.orbs[#q.orbs + 1] = r
+                  end
+                end
+              end
+            end
+            if k.lagBackOn then
+              if k.lagBackOn() then
+                n = J.Character
+                local r = n and (n:FindFirstChildOfClass("Humanoid"))
+                if r then
+                  if r.WalkSpeed > 4 then
+                    q.sp = math.min(q.sp, r.WalkSpeed)
+                    q.slow = true
+                  end
+                end
+              end
+            end
+            local r, L, b, I = e(P)
+            if r and #r > 0 then
+              q.rings = r
+              q.ox = L
+              q.oz = b
+              q.dhw = I
+              n = K.vb.lance
+              local e, r, I = n.timing or {}, P - a:GetServerTimeNow(), 0
+              for P, P in pairs(n.rings or {}) do
+                I = math.max(I, P.launch or 0)
+              end
+              q.zs[#q.zs + 1] = {
+                name = "vb lance core",
+                cx = L,
+                cz = b,
+                r = (e.markerRadius or 10) + (H.vbCorePad or 4),
+                from = n.t0 + (e.plantImpact or 1.5) + r - 0.6,
+                untilAt = n.t0 + I + (e.standFade or 0.8) + r + 0.3,
+              }
+            end
+            return q
+          end
+          local function e(P)
+            if P.name == "vb meteor line" then
+              return H.vbTickSev or 1
+            elseif P.name == "vb meteor children" then
+              return H.vbTickSev or 1
+            end
+            return 1
+          end
+          local function P(n, q, r, L, b, I, d)
+            local Y, F, C, Q, O, V, p, t, W =
+              n.zs, n.orbs, n.rings, n.beam, n.sp, n.band, n.ox, n.oz, n.dhw
+            local G, h = W or 9, n.relax and (H.vbRingRelaxBody or 1.5)
+            local B = G - (h or n.bodyD)
+            d = d or 0
+            G = I + d
+            if d > 0 then
+              if C then
+                local S, Z = q - p, r - t
+                h = math.sqrt(S * S + Z * Z)
+                if h > W then
+                  for u = 1, #C, 1 do
+                    local c = C[u]
+                    local u, y = math.max(I - c.L0, 0), math.min(G - c.L0, c.life)
+                    if y > u then
+                      local E, m = v(u, c.slow, c.steady, c.life0), v(y, c.slow, c.steady, c.life0)
+                      if E < h + V then
+                        if m > h - V then
+                          if not (D(c.doors, S, Z, h, B)) then
+                            return I, 0, G, 1
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              for S = 1, #Y, 1 do
+                local Z = Y[S]
+                if Z.from <= G then
+                  if Z.untilAt >= I then
+                    if U(Z, q, r, n.m) then
+                      return math.max(I, Z.from), 0, G, e(Z)
+                    end
+                  end
+                end
+              end
+              if #F > 0 then
+                local S = I
+                while S <= G do
+                  for Z = 1, #F, 1 do
+                    local u = F[Z]
+                    if S <= u.untilAt then
+                      Z = (u.offset or 0) + u.speed * math.max(S - u.pathStart, 0)
+                      local c, y, E = q - (u.ox + u.dx * Z), r - (u.oz + u.dz * Z), (u.r or 14) + 1
+                      if c * c + y * y <= E * E then
+                        return S, 0, G, 1
+                      end
+                    end
+                  end
+                  S += 0.1
+                end
+              end
+            end
+            local S, Z = L - q, b - r
+            h = math.sqrt(S * S + Z * Z)
+            local u, c, y = math.max(1, math.ceil(h / n.step)), G + h / O, {}
+            for E = 0, u, 1 do
+              local m = E / u
+              local R, _, T = q + S * m, r + Z * m, G + h * m / O
+              if C then
+                local fL, kL = R - p, _ - t
+                m = math.sqrt(fL * fL + kL * kL)
+                for HL = 1, #C, 1 do
+                  local NL = C[HL]
+                  local lL = T - NL.L0
+                  if lL > 0 then
+                    if lL <= NL.life then
+                      local xL, vL = v(lL, NL.slow, NL.steady, NL.life0) - m, y[HL]
+                      if
+                        (E > 0 or d > 0) and (math.abs(xL) < V or vL ~= nil and vL > 0 ~= (xL > 0))
+                      then
+                        if m > W then
+                          if not (D(NL.doors, fL, kL, m, B)) then
+                            return T, 0, c, 1
+                          end
+                        end
+                      end
+                      y[HL] = xL
+                    else
+                      y[HL] = nil
+                    end
+                  else
+                    y[HL] = nil
+                  end
+                end
+              end
+              if E > 0 or d > 0 then
+                for D = 1, #Y, 1 do
+                  m = Y[D]
+                  if m.from <= T then
+                    if m.untilAt >= T then
+                      if U(m, R, _, n.m) then
+                        D = n.skipPath and n.skipPath[m]
+                        if
+                          if D
+                            then H.vbSkipDeeper ~= false
+                              and s(m, R, _) > s(m, q, r) + (H.vbSkipDeep or 0.5)
+                            else not D
+                        then
+                          return T, 0, c, e(m)
+                        elseif m.name == "vb bars" then
+                          if H.vbBarSkipLive ~= false then
+                            if T >= m.from + (H.vbBarLead or 0.4) then
+                              return T, 0, c, e(m)
+                            end
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              for s = 1, #F, 1 do
+                m = F[s]
+                if T <= m.untilAt then
+                  s = (m.offset or 0) + m.speed * math.max(T - m.pathStart, 0)
+                  local D, d, E = R - (m.ox + m.dx * s), _ - (m.oz + m.dz * s), (m.r or 14) + 1
+                  if D * D + d * d <= E * E then
+                    return T, 0, c, 1
+                  end
+                end
+              end
+              if Q then
+                if T > Q.cs then
+                  if T < Q.gr then
+                    local s, D, d =
+                      math.max(Q.r0 + (Q.er - Q.r0) * math.min((T - Q.cs) / Q.ct, 1) - Q.w, 2.5),
+                      R - Q.cx,
+                      _ - Q.cz
+                    if D * D + d * d > s * s then
+                      return T, 0, c, 1
+                    end
+                  end
+                end
+              end
+            end
+            S = nil
+            r, y = 0, 1
+            if C then
+              Z, u = L - p, b - t
+              h = math.sqrt(Z * Z + u * u)
+              if h > W then
+                local s, D, d, E, m =
+                  math.atan2(u, Z),
+                  math.atan,
+                  math.max,
+                  W or 9,
+                  n.relax and (H.vbRingRelaxHold or 2.5)
+                B, G = D(d(E - (m or (H.vbRingHoldBody or 4.5)), 0) / h), {}
+                for u = 1, #C, 1 do
+                  D = C[u]
+                  d = math.max(c - D.L0, 0)
+                  if d < D.life and D.rMax >= h - V and v(d, D.slow, D.steady, D.life0) < h - V then
+                    E, m = d, D.life
+                    for R = 1, 14, 1 do
+                      R = (E + m) / 2
+                      if v(R, D.slow, D.steady, D.life0) < h - V then
+                        E = R
+                      else
+                        m = R
+                      end
+                    end
+                    q, u = math.huge
+                    for R, _ in ipairs(D.doors) do
+                      R = math.abs(
+                        (s - _ + 3.141592653589793) % 6.283185307179586 - 3.141592653589793
+                      ) - B
+                      if R < q then
+                        q, u = R, _
+                      else
+                      end
+                    end
+                    G[#G + 1] = { D.L0 + m, math.max(0, q) * h, u }
+                  end
+                end
+                table.sort(G, function(q, u)
+                  return q[1] < u[1]
+                end)
+                E = c
+                for q, u in ipairs(G) do
+                  q, m = u[1], u[2]
+                  if m > 0 then
+                    local R, _, T = q - E, m / O, n.relax and 0.1 or (H.vbRingSlide or 0.25)
+                    if R >= _ + T then
+                      d = false
+                      if u[3] then
+                        D = (u[3] - s + 3.141592653589793) % 6.283185307179586 - 3.141592653589793
+                        for u = 1, 8, 1 do
+                          local R = s + D * u / 8
+                          local s, D, _, T =
+                            p + math.cos(R) * h, t + math.sin(R) * h, E + m / O * u / 8, d
+                          if k.vbEdge(s, D) < (H.vbEdgeMin or 3) then
+                            d = true
+                            break
+                          end
+                          d = T
+                          for O = 1, #Y, 1 do
+                            R = Y[O]
+                            if R.from <= _ and R.untilAt >= _ and U(R, s, D, n.m) then
+                              d = true
+                              break
+                            end
+                          end
+                          if d then
+                            break
+                          end
+                        end
+                        local s
+                        if d then
+                          if q - I <= n.hard then
+                            if S then
+                              if q < S then
+                                local D = 1
+                                S, y = q, D
+                              else
+                              end
+                            else
+                              local D = 1
+                              S, y = q, D
+                            end
+                          else
+                            s = r + 3
+                            r = s
+                          end
+                        else
+                          s = r + 1
+                          r = s
+                        end
+                      else
+                        local s = r + 1
+                        r = s
+                      end
+                    else
+                      if q - I <= n.hard then
+                        if S then
+                          if q < S then
+                            local s = 1
+                            S, y = q, s
+                          else
+                          end
+                        else
+                          local s = 1
+                          S, y = q, s
+                        end
+                      else
+                        r = r + 1
+                      end
+                    end
+                  else
+                  end
+                  E = q + 0.1
+                end
+              else
+              end
+            else
+            end
+            for s = 1, #Y, 1 do
+              C = Y[s]
+              if C.untilAt >= c and C.from <= c + n.hold then
+                if U(C, L, b, n.m2) then
+                  Z = math.max(c, C.from)
+                  if Z - I <= n.hard then
+                    if S then
+                      if Z < S then
+                        W = e(C)
+                        S, y = Z, W
+                      else
+                      end
+                    else
+                      h = e(C)
+                      S, y = Z, h
+                    end
+                  else
+                    G = r + (C.name == "vb bars" and (H.vbBarSoftK or 8) or 1)
+                    r = G
+                  end
+                else
+                end
+              else
+              end
+            end
+            if Q and c < Q.gr then
+              Y = math.sqrt((L - Q.cx) ^ 2 + (b - Q.cz) ^ 2)
+              if Y > 2.5 then
+                W = Y + Q.w
+                V = W >= Q.r0 and Q.cs or Q.cs + Q.ct * (Q.r0 - W) / (Q.r0 - Q.er)
+                V = if V < c then c else V
+                if V < Q.gr then
+                  if V - I <= n.hard then
+                    if if S then V < S else not S then
+                      S, y = V, 1
+                    else
+                    end
+                  else
+                    r = r + 1
+                  end
+                else
+                end
+              else
+              end
+            else
+            end
+            if #F > 0 then
+              for s = 1, 20, 1 do
+                B, t = c + s * 0.1, false
+                for s = 1, #F, 1 do
+                  V = F[s]
+                  if B <= V.untilAt then
+                    Z = (V.offset or 0) + V.speed * math.max(B - V.pathStart, 0)
+                    C, W, s = L - (V.ox + V.dx * Z), b - (V.oz + V.dz * Z), (V.r or 14) + 1
+                    if C * C + W * W <= s * s then
+                      t = true
+                      break
+                    end
+                  end
+                end
+                if t then
+                  if B - I <= n.hard then
+                    if if S then B < S else not S then
+                      S, y = B, 1
+                    else
+                    end
+                  else
+                    r = r + 1
+                  end
+                  break
+                end
+              end
+            else
+            end
+            return S, r, c, y
+          end
+          local s, D, e, n =
+            {
+              { -0.6392, 0.769, -1408.36 },
+              { -0.6392, 0.769, -1409.03 },
+              { 0.8211, 0.5708, 694.53 },
+              { -0.6919, -0.722, -190.01 },
+              { 0.8779, 0.4789, 857.64 },
+              { -0.6283, -0.7779, -51.01 },
+              { 0.9939, 0.1104, 1351.93 },
+              { -0.28, -0.96, 590.34 },
+              { 0.96, -0.28, 1650.82 },
+              { 0.1104, -0.9939, 1142.88 },
+              { 0.7779, -0.6283, 1699.69 },
+              { 0.4789, -0.8779, 1519.64 },
+              { 0.6392, -0.769, 1626.7 },
+            },
+            {
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -57,
+              -57,
+              -57,
+              -57,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -56,
+              -54,
+              -52,
+              -51,
+              -51,
+              -51,
+              -51,
+              -52,
+              -54,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -54,
+              -51,
+              -48,
+              -46,
+              -45,
+              -45,
+              -45,
+              -45,
+              -46,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -49,
+              -45,
+              -43,
+              -41,
+              -39,
+              -39,
+              -39,
+              -39,
+              -41,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -40,
+              -37,
+              -35,
+              -33,
+              -33,
+              -33,
+              -33,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -32,
+              -29,
+              -28,
+              -27,
+              -27,
+              -28,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -24,
+              -22,
+              -21,
+              -21,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -15,
+              -15,
+              -16,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -16,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              19,
+              14,
+              10,
+              5,
+              3,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              19,
+              14,
+              10,
+              9,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              22,
+              19,
+              16,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -16,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              27,
+              24,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              32,
+              29,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              37,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              43,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              9,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              48,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              16,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -16,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              35,
+              39,
+              44,
+              48,
+              52,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              24,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              32,
+              37,
+              43,
+              48,
+              52,
+              56,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              32,
+              29,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              40,
+              45,
+              51,
+              56,
+              61,
+              61,
+              56,
+              52,
+              48,
+              44,
+              40,
+              37,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              49,
+              54,
+              59,
+              64,
+              65,
+              61,
+              56,
+              52,
+              49,
+              45,
+              43,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              9,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              48,
+              52,
+              57,
+              62,
+              67,
+              69,
+              65,
+              61,
+              57,
+              54,
+              51,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              16,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -54,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              48,
+              52,
+              56,
+              61,
+              65,
+              70,
+              73,
+              69,
+              65,
+              62,
+              59,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              24,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -41,
+              -46,
+              -52,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              35,
+              39,
+              44,
+              48,
+              52,
+              56,
+              61,
+              65,
+              69,
+              74,
+              78,
+              74,
+              70,
+              67,
+              64,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              32,
+              29,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -28,
+              -33,
+              -39,
+              -45,
+              -51,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              32,
+              37,
+              43,
+              48,
+              52,
+              56,
+              61,
+              65,
+              69,
+              73,
+              78,
+              82,
+              79,
+              75,
+              72,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              40,
+              37,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -15,
+              -21,
+              -27,
+              -33,
+              -39,
+              -45,
+              -51,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              40,
+              45,
+              51,
+              56,
+              61,
+              65,
+              69,
+              73,
+              78,
+              82,
+              86,
+              84,
+              80,
+              77,
+              73,
+              69,
+              65,
+              61,
+              56,
+              52,
+              49,
+              45,
+              40,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -15,
+              -21,
+              -27,
+              -33,
+              -39,
+              -45,
+              -51,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              49,
+              54,
+              59,
+              64,
+              69,
+              73,
+              78,
+              82,
+              86,
+              90,
+              87,
+              82,
+              78,
+              73,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              43,
+              37,
+              32,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -28,
+              -33,
+              -39,
+              -45,
+              -51,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              48,
+              52,
+              57,
+              62,
+              67,
+              72,
+              77,
+              82,
+              86,
+              90,
+              89,
+              84,
+              79,
+              74,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              29,
+              24,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -41,
+              -46,
+              -52,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -54,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              27,
+              31,
+              35,
+              39,
+              44,
+              48,
+              52,
+              56,
+              61,
+              65,
+              70,
+              75,
+              80,
+              86,
+              90,
+              90,
+              86,
+              80,
+              75,
+              70,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -54,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -52,
+              -46,
+              -41,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              35,
+              39,
+              44,
+              48,
+              52,
+              56,
+              61,
+              65,
+              69,
+              74,
+              79,
+              84,
+              89,
+              90,
+              86,
+              82,
+              77,
+              72,
+              67,
+              62,
+              57,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -28,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              32,
+              37,
+              43,
+              48,
+              52,
+              56,
+              61,
+              65,
+              69,
+              73,
+              78,
+              82,
+              87,
+              90,
+              86,
+              82,
+              78,
+              73,
+              69,
+              64,
+              59,
+              54,
+              49,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -27,
+              -21,
+              -15,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              29,
+              32,
+              35,
+              39,
+              44,
+              48,
+              52,
+              57,
+              62,
+              67,
+              72,
+              77,
+              83,
+              88,
+              86,
+              82,
+              78,
+              73,
+              69,
+              65,
+              61,
+              56,
+              51,
+              45,
+              40,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -28,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              24,
+              27,
+              31,
+              35,
+              39,
+              44,
+              49,
+              54,
+              59,
+              64,
+              69,
+              75,
+              81,
+              84,
+              82,
+              78,
+              73,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              43,
+              37,
+              32,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -52,
+              -46,
+              -41,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              16,
+              19,
+              22,
+              27,
+              31,
+              35,
+              40,
+              45,
+              51,
+              56,
+              62,
+              67,
+              73,
+              77,
+              79,
+              78,
+              73,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              29,
+              24,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -54,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              9,
+              10,
+              14,
+              19,
+              22,
+              27,
+              32,
+              37,
+              43,
+              48,
+              54,
+              60,
+              65,
+              70,
+              71,
+              73,
+              74,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              35,
+              41,
+              46,
+              52,
+              58,
+              63,
+              64,
+              65,
+              67,
+              69,
+              65,
+              61,
+              56,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              28,
+              33,
+              39,
+              45,
+              51,
+              57,
+              57,
+              58,
+              60,
+              62,
+              64,
+              62,
+              57,
+              52,
+              48,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -5,
+              -3,
+              3,
+              9,
+              15,
+              21,
+              27,
+              33,
+              39,
+              45,
+              51,
+              51,
+              51,
+              52,
+              54,
+              56,
+              59,
+              59,
+              54,
+              49,
+              44,
+              39,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -14,
+              -9,
+              -3,
+              3,
+              9,
+              15,
+              21,
+              27,
+              33,
+              39,
+              45,
+              45,
+              45,
+              45,
+              46,
+              48,
+              51,
+              54,
+              56,
+              51,
+              45,
+              40,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              9,
+              15,
+              21,
+              27,
+              33,
+              39,
+              39,
+              39,
+              39,
+              39,
+              41,
+              43,
+              45,
+              48,
+              51,
+              48,
+              43,
+              37,
+              32,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              15,
+              21,
+              27,
+              33,
+              35,
+              33,
+              33,
+              33,
+              33,
+              35,
+              37,
+              40,
+              43,
+              45,
+              44,
+              39,
+              35,
+              29,
+              24,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              28,
+              32,
+              29,
+              28,
+              27,
+              27,
+              28,
+              29,
+              32,
+              35,
+              37,
+              40,
+              39,
+              35,
+              31,
+              27,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -56,
+              -54,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              27,
+              24,
+              22,
+              21,
+              21,
+              22,
+              24,
+              27,
+              29,
+              32,
+              35,
+              35,
+              31,
+              27,
+              22,
+              19,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -54,
+              -51,
+              -48,
+              -45,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              16,
+              15,
+              15,
+              16,
+              19,
+              22,
+              24,
+              27,
+              31,
+              31,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -49,
+              -45,
+              -43,
+              -40,
+              -37,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              9,
+              9,
+              10,
+              14,
+              16,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -40,
+              -37,
+              -35,
+              -32,
+              -29,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              3,
+              5,
+              9,
+              10,
+              14,
+              19,
+              22,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -32,
+              -29,
+              -27,
+              -24,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -3,
+              3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -24,
+              -22,
+              -19,
+              -16,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -5,
+              -3,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -14,
+              -10,
+              -9,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              27,
+              29,
+              24,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -10,
+              -9,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -5,
+              -3,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              27,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -16,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -3,
+              3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              3,
+              5,
+              9,
+              10,
+              14,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              9,
+              10,
+              14,
+              16,
+              19,
+              22,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              16,
+              19,
+              22,
+              24,
+              27,
+              27,
+              22,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -54,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              24,
+              27,
+              29,
+              29,
+              24,
+              19,
+              14,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -15,
+              -16,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -52,
+              -46,
+              -41,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              16,
+              22,
+              27,
+              29,
+              32,
+              33,
+              28,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -39,
+              -35,
+              -31,
+              -27,
+              -24,
+              -22,
+              -21,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -28,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              24,
+              29,
+              35,
+              37,
+              33,
+              27,
+              21,
+              15,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -44,
+              -39,
+              -35,
+              -32,
+              -29,
+              -28,
+              -27,
+              -28,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -27,
+              -21,
+              -15,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              27,
+              32,
+              37,
+              37,
+              32,
+              27,
+              21,
+              15,
+              9,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -48,
+              -44,
+              -40,
+              -37,
+              -35,
+              -33,
+              -33,
+              -33,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -27,
+              -21,
+              -15,
+              -9,
+              -3,
+              3,
+              9,
+              14,
+              19,
+              22,
+              24,
+              27,
+              31,
+              35,
+              32,
+              29,
+              24,
+              19,
+              14,
+              9,
+              3,
+              -3,
+              -9,
+              -15,
+              -21,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -48,
+              -52,
+              -52,
+              -49,
+              -45,
+              -43,
+              -41,
+              -39,
+              -39,
+              -39,
+              -41,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -27,
+              -21,
+              -15,
+              -9,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              16,
+              19,
+              22,
+              27,
+              31,
+              27,
+              24,
+              22,
+              16,
+              10,
+              5,
+              3,
+              -3,
+              -9,
+              -15,
+              -21,
+              -27,
+              -33,
+              -39,
+              -44,
+              -48,
+              -52,
+              -56,
+              -57,
+              -54,
+              -51,
+              -48,
+              -46,
+              -45,
+              -45,
+              -45,
+              -46,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -51,
+              -45,
+              -39,
+              -33,
+              -28,
+              -22,
+              -16,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              9,
+              10,
+              14,
+              19,
+              22,
+              27,
+              22,
+              19,
+              16,
+              14,
+              9,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -28,
+              -33,
+              -39,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -59,
+              -56,
+              -54,
+              -52,
+              -51,
+              -51,
+              -51,
+              -52,
+              -54,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -52,
+              -46,
+              -41,
+              -35,
+              -29,
+              -24,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              22,
+              19,
+              14,
+              10,
+              9,
+              5,
+              3,
+              -3,
+              -9,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -41,
+              -46,
+              -52,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -57,
+              -57,
+              -57,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -54,
+              -48,
+              -43,
+              -37,
+              -32,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              19,
+              16,
+              10,
+              5,
+              3,
+              3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -54,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -51,
+              -45,
+              -40,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              15,
+              9,
+              3,
+              -3,
+              -3,
+              -5,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -54,
+              -49,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              10,
+              14,
+              9,
+              3,
+              -3,
+              -9,
+              -10,
+              -14,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -24,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              5,
+              9,
+              9,
+              3,
+              -3,
+              -9,
+              -15,
+              -19,
+              -22,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -32,
+              -29,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              3,
+              3,
+              3,
+              3,
+              -3,
+              -9,
+              -15,
+              -21,
+              -27,
+              -31,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -40,
+              -37,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -5,
+              -3,
+              -3,
+              -3,
+              -3,
+              -5,
+              -10,
+              -16,
+              -22,
+              -28,
+              -33,
+              -39,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -49,
+              -45,
+              -43,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -14,
+              -10,
+              -9,
+              -9,
+              -9,
+              -9,
+              -10,
+              -14,
+              -19,
+              -24,
+              -29,
+              -35,
+              -41,
+              -46,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -54,
+              -51,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -22,
+              -19,
+              -16,
+              -15,
+              -15,
+              -15,
+              -15,
+              -16,
+              -19,
+              -22,
+              -27,
+              -32,
+              -37,
+              -43,
+              -48,
+              -54,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -31,
+              -27,
+              -24,
+              -22,
+              -21,
+              -21,
+              -21,
+              -21,
+              -22,
+              -24,
+              -27,
+              -31,
+              -35,
+              -40,
+              -45,
+              -51,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -39,
+              -35,
+              -32,
+              -29,
+              -28,
+              -27,
+              -27,
+              -27,
+              -27,
+              -28,
+              -29,
+              -32,
+              -35,
+              -39,
+              -44,
+              -49,
+              -54,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -48,
+              -44,
+              -40,
+              -37,
+              -35,
+              -33,
+              -33,
+              -33,
+              -33,
+              -33,
+              -33,
+              -35,
+              -37,
+              -40,
+              -44,
+              -48,
+              -52,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -56,
+              -52,
+              -49,
+              -45,
+              -43,
+              -41,
+              -39,
+              -39,
+              -39,
+              -39,
+              -39,
+              -39,
+              -41,
+              -43,
+              -45,
+              -49,
+              -52,
+              -56,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -57,
+              -54,
+              -51,
+              -48,
+              -46,
+              -45,
+              -45,
+              -45,
+              -45,
+              -45,
+              -45,
+              -46,
+              -48,
+              -51,
+              -54,
+              -57,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -59,
+              -56,
+              -54,
+              -52,
+              -51,
+              -51,
+              -51,
+              -51,
+              -51,
+              -51,
+              -52,
+              -54,
+              -56,
+              -59,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -58,
+              -57,
+              -57,
+              -57,
+              -57,
+              -57,
+              -57,
+              -58,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+              -60,
+            },
+            104,
+            114
+          function k.vbEdge(q, r)
+            if H.vbEdgeGrid ~= false then
+              local L, b = (q - 980) / 6, (r + 1160) / 6
+              local I, d = math.floor(L), math.floor(b)
+              if I < 0 then
+                return -40
+              elseif d < 0 then
+                return -40
+              elseif I >= n - 1 then
+                return -40
+              elseif d >= e - 1 then
+                return -40
+              end
+              local e, Y, F = L - I, b - d, d * n + I + 1
+              d, b, L, I = D[F], D[F + 1], D[F + n], D[F + n + 1]
+              return (d * (1 - e) + b * e) * (1 - Y) + (L * (1 - e) + I * e) * Y
+            end
+            local D = math.huge
+            for e = 1, #s, 1 do
+              local n = s[e]
+              e = n[3] - (q * n[1] + r * n[2])
+              D = if e < D then e else D
+            end
+            return D
+          end
+          function k.vbMidOver(s, D)
+            if H.vbEdgeCost == false then
+              return 0
+            end
+            return math.max(0, (H.vbEdgeFree or 45) - k.vbEdge(s, D))
+          end
+          function k.vbPlan(s, D, e, n, q, r, L)
+            local b = {}
+            for I = 1, #n, 1 do
+              local d = n[I]
+              I = r(d[1], d[2])
+              if I then
+                if k.vbEdge(d[1], d[2]) >= (H.vbEdgeMin or 3) then
+                  b[#b + 1] = { d[1], d[2], I + (d[3] or 0) * (H.vbPlanWaitW or 0.05), d[3] or 0 }
+                end
+              end
+            end
+            table.sort(b, function(I, d)
+              return I[3] < d[3]
+            end)
+            n = nil
+            for I = 1, #s.zs, 1 do
+              r = s.zs[I]
+              if r.from <= q + 0.1 then
+                if r.untilAt >= q then
+                  if U(r, D, e, s.m) then
+                    I = n or {}
+                    I[r] = true
+                    n = I
+                  else
+                  end
+                else
+                end
+              else
+              end
+            end
+            s.skipPath = n
+            local I, d, Y, F, C, Q =
+              os.clock(), H.vbPlanBudget or 0.008, H.vbPlanSoft or 1.5, math.huge
+            r = 0
+            for O = 1, #b, 1 do
+              n = b[O]
+              if n[3] >= F then
+                break
+              end
+              local b, V, p, p = P(s, D, e, n[1], n[2], q, n[4])
+              O = if b
+                then 100 * (p or 1) + 10 * math.max(0, s.hard - (b - q)) + n[3]
+                else n[3] + V * Y
+              if O < F then
+                if L then
+                  if L(n[1], n[2]) then
+                    F, C, Q, r = O, n, b, V
+                  else
+                  end
+                else
+                  F, C, Q, r = O, n, b, V
+                end
+              else
+              end
+              if os.clock() - I > d then
+                break
+              end
+            end
+            s.skipPath = nil
+            return C, Q, r, F
+          end
+          function k.vbPlanKeep(s, D, e, n, q, r, L, b)
+            local I = K.vb or {}
+            I.keepPick = I.keepPick or {}
+            local d, Y, F, C = k.vbPlan(D, e, n, q, r, L, b)
+            if H.vbPlanKeep == false then
+              return d, Y, F, C
+            end
+            q = I.keepPick[s]
+            q = q
+              and (
+                if r - q.at > (H.vbKeepFor or 1)
+                  then nil
+                  else if (q.x - e) ^ 2 + (q.z - n) ^ 2 < 2.25 then nil else q
+              )
+            if q then
+              local Q, O = math.max(0, (q.dep or r) - r), L(q.x, q.z)
+              if
+                O
+                and k.vbEdge(q.x, q.z) >= (H.vbEdgeMin or 3)
+                and (if b then b(q.x, q.z) else not b)
+              then
+                O += Q * (H.vbPlanWaitW or 0.05)
+                local b
+                for V = 1, #D.zs, 1 do
+                  local p = D.zs[V]
+                  if p.from <= r + 0.1 then
+                    if p.untilAt >= r then
+                      if U(p, e, n, D.m) then
+                        V = b or {}
+                        V[p] = true
+                        b = V
+                      else
+                      end
+                    else
+                    end
+                  else
+                  end
+                end
+                D.skipPath = b
+                local U, b, V, V = P(D, e, n, q.x, q.z, r, Q)
+                D.skipPath = nil
+                local e, p =
+                  if U
+                    then 100 * (V or 1) + 10 * math.max(0, D.hard - (U - r)) + O
+                    else O + b * (H.vbPlanSoft or 1.5),
+                  d and not Y and U
+                if d then
+                  if not p then
+                    if e <= C + (H.vbKeepMargin or 8) then
+                      return { q.x, q.z, O, Q }, U, b, e
+                    end
+                  end
+                else
+                  return { q.x, q.z, O, Q }, U, b, e
+                end
+              end
+            end
+            if d then
+              L, n = I.keepPick, { x = d[1], z = d[2], at = r }
+              n.dep, L[s] = r + (d[4] or 0), n
+            else
+              I.keepPick[s] = nil
+            end
+            return d, Y, F, C
+          end
+          function k.vbFightSpot()
+            local U = K.vb
+            if not U then
+              return nil
+            end
+            local s = k.gsBonusFind and k.gsBonusFind()
+            if s then
+              local D, e = pcall(function()
+                return s:GetPivot().Position
+              end)
+              if D then
+                if typeof(e) == "Vector3" then
+                  if e.Y > (H.vbBossHomeY or 50) then
+                    U.bossHome = e
+                  end
+                end
+              end
+            end
+            local s, D = U.bossHome, U.glyph
+            if typeof(s) ~= "Vector3" then
+              return nil
+            elseif typeof(D) ~= "Vector3" then
+              return nil
+            end
+            local e, n = s.X - D.X, s.Z - D.Z
+            s = math.sqrt(e * e + n * n)
+            if s < 1 then
+              return D
+            end
+            U = math.min(H.vbFightG or 10, s)
+            return Vector3.new(D.X + e / s * U, D.Y, D.Z + n / s * U)
+          end
+          function k.vbApproach(U, s, D, e, n)
+            local q, r, L, b = K.vb, U.X, U.Z, k.vbThreats(s)
+            local I, d, Y = H.vbFightNear or 4, math.sqrt((D.X - r) ^ 2 + (D.Z - L) ^ 2), q.apGoal
+            if Y then
+              if s - Y.at < (H.vbApKeep or 0.6) then
+                if math.abs(Y.fx - D.X) < 1 then
+                  if math.abs(Y.fz - D.Z) < 1 then
+                    local F, C = P(b, r, L, Y.x, Y.z, s)
+                    local Q = math.sqrt((Y.x - r) ^ 2 + (Y.z - L) ^ 2)
+                    if not F then
+                      if C == 0 then
+                        if Q > 1.5 then
+                          return Vector3.new(Y.x, U.Y, Y.z),
+                            ("%s (%.0f studs to go, kept)"):format(e, d),
+                            "go"
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+            end
+            local F, C = { { D.X, D.Z } }, { 5, 10, 15 }
+            for Q, Q in ipairs(C) do
+              for O = 0, 11, 1 do
+                Y = O * 3.141592653589793 / 6
+                F[#F + 1] = { D.X + math.cos(Y) * Q, D.Z + math.sin(Y) * Q }
+              end
+            end
+            if d > I then
+              local Q, O, V = (D.X - r) / d, (D.Z - L) / d, { 6, 12, 18, 24, 32, 40, 50, 60 }
+              for p, t in ipairs(V) do
+                if t < d then
+                  p = { 0, -8, 8, -16, 16 }
+                  for V, V in ipairs(p) do
+                    F[#F + 1] = { r + Q * t - O * V, L + O * t + Q * V }
+                  end
+                end
+              end
+            end
+            Y = {}
+            for Q, Q in ipairs(F) do
+              C = math.sqrt((Q[1] - D.X) ^ 2 + (Q[2] - D.Z) ^ 2)
+              if C <= I or C < d - 3 then
+                Y[#Y + 1] = { Q[1], Q[2], C + 0.2 * math.sqrt((Q[1] - r) ^ 2 + (Q[2] - L) ^ 2) }
+              end
+            end
+            table.sort(Y, function(Q, O)
+              return Q[3] < O[3]
+            end)
+            F = os.clock()
+            for Q, O in ipairs(Y) do
+              Q, C = P(b, r, L, O[1], O[2], s)
+              local V, p = if Q then not Q else C == 0
+              if V then
+                Q = k.gsWallClear
+                p = if Q then k.gsWallClear(U, Vector3.new(O[1], U.Y, O[2])) else not Q
+              else
+                p = V
+              end
+              if p then
+                q.apGoal = { x = O[1], z = O[2], at = s, fx = D.X, fz = D.Z }
+                if math.sqrt((O[1] - r) ^ 2 + (O[2] - L) ^ 2) <= 1.5 then
+                  return U, e, "hold"
+                end
+                return Vector3.new(O[1], U.Y, O[2]), ("%s (%.0f studs to go)"):format(e, d), "go"
+              end
+              if os.clock() - F > (H.vbPlanBudget or 0.008) then
+                break
+              end
+            end
+            q.apGoal = nil
+            if n and #Y > 0 and k.vbPlan then
+              F = {}
+              for n, n in ipairs(Y) do
+                F[#F + 1] = { n[1], n[2] }
+              end
+              C, q = k.vbPlan(b, r, L, F, s, function(n, r)
+                return math.sqrt((n - D.X) ^ 2 + (r - D.Z) ^ 2) / b.sp
+              end, nil)
+              if C then
+                return Vector3.new(C[1], U.Y, C[2]),
+                  e .. " - forcing the way, the rune is about to blow" .. (q and string.format(
+                    " (hit in %.1fs)",
+                    q - s
+                  ) or ""),
+                  "go"
+              end
+            end
+            if d > I then
+              return U, e .. " - holding, no clean way closer yet", "hold"
+            end
+            return nil
+          end
+          function k.vbLaneTarget(U, s, D, e)
+            if H.vbLanes == false then
+              return nil
+            end
+            local n, q, r = K.vb
+            local L, b, I, d, Y = {}, ipairs, U.zs
+            for F, F in b(I) do
+              if F.name == "vb bars" and F.ax and F.bx and F.untilAt > e then
+                if d then
+                else
+                  d, Y, q = F.ax, F.az, F.bx
+                  r = F.bz
+                end
+                if math.abs(F.ax * d + F.az * Y) > 0.97 then
+                  local C, Q = (F.cx - s) * d + (F.cz - D) * Y
+                  for O, O in ipairs(L) do
+                    if math.abs(O.s - C) < 3 then
+                      Q = O
+                      break
+                    end
+                  end
+                  if Q then
+                  else
+                    Q = { s = C, ha = F.ha or 6, w = {} }
+                    L[#L + 1] = Q
+                  end
+                  Q.w[#Q.w + 1] = { F.from, F.untilAt }
+                  if (F.ha or 6) > Q.ha then
+                    Q.ha = F.ha
+                  end
+                end
+              else
+              end
+            end
+            if d then
+              if #L < 2 then
+                n.laneT = nil
+                return nil
+              end
+            else
+              n.laneT = nil
+              return nil
+            end
+            table.sort(L, function(F, C)
+              return F.s < C.s
+            end)
+            local F, C, Q, O = U.sp or 24, (U.m or 1) + 0.5, H.vbLaneEdge or 6, {}
+            for V, V in ipairs(U.zs) do
+              if V.name == "vb breath pool" then
+                if V.r then
+                  if V.untilAt > e then
+                    if V.from < e + 2 then
+                      O[#O + 1] = V
+                    end
+                  end
+                end
+              end
+            end
+            local function V(p, t)
+              if k.vbEdge(p, t) < Q then
+                return true
+              end
+              for Q, Q in ipairs(O) do
+                if (p - Q.cx) ^ 2 + (t - Q.cz) ^ 2 <= Q.r * Q.r then
+                  return true
+                end
+              end
+              return false
+            end
+            local function Q(O, p)
+              local t, W, G = { 1, -1 }, -1, 1
+              for h, B in ipairs(t) do
+                h = 0
+                for t = 6, 150, 6 do
+                  if V(O + q * B * t, p + r * B * t) then
+                    break
+                  end
+                  h = t
+                end
+                h = if n.laneT
+                  then if n.laneT.sg == B then if e - n.laneT.at < 1 then h + 6 else h else h
+                  else h
+                if h > W then
+                  W, G = h, B
+                else
+                end
+              end
+              return W, G
+            end
+            local function O(p, t, W)
+              for G, G in ipairs(p.w) do
+                if G[1] <= W then
+                  if G[2] >= t then
+                    return false
+                  end
+                end
+              end
+              return true
+            end
+            b = {}
+            for p = 1, #L - 1, 1 do
+              I, U = L[p].s + L[p].ha + C, L[p + 1].s - L[p + 1].ha - C
+              if U - I >= 1 then
+                local p, t = #b + 1, {}
+                t.c, t.lo, t.hi, b[p] = (I + U) / 2, I, U, t
+              end
+            end
+            I, U = L[1], L[#L]
+            b[#b + 1] =
+              { c = math.min(-0.01, I.s - I.ha - C - 8), lo = -1000000000, hi = I.s - I.ha - C }
+            b[#b + 1] =
+              { c = math.max(0.01, U.s + U.ha + C + 8), lo = U.s + U.ha + C, hi = 1000000000 }
+            local p, t, W = s * d + D * Y, -math.huge
+            for G, h in ipairs(b) do
+              U = 0 >= h.lo and 0 <= h.hi
+              local b, B, S = U and 0 or h.c, true, 0
+              for Z, u in ipairs(L) do
+                if u.s > 0 and u.s < b or u.s < 0 and u.s > b then
+                  G, Z = math.max(0, math.abs(u.s) - u.ha - C), math.abs(u.s) + u.ha + C
+                  if not (O(u, e + G / F - 0.1, e + Z / F + 0.15)) then
+                    B = false
+                    break
+                  end
+                  S += 1
+                else
+                end
+              end
+              if B then
+                if math.abs(b) <= (H.vbLaneMaxShift or 70) then
+                  I, G = s + d * b, D + Y * b
+                  h = V(I, G)
+                  if if h then U else not h then
+                    local s, D = Q(I, G)
+                    local L = s - S * (H.vbLaneCrossCost or 12) - math.abs(b) * 0.2
+                    L = if U then L + (H.vbLaneStay or 10) else L
+                    L = if n.laneT
+                      then if e - n.laneT.at < 1
+                        then if math.abs(p + b - n.laneT.sAbs) < 4 then L + 15 else L
+                        else L
+                      else L
+                    if L > t then
+                      local d =
+                        { x = I, z = G, dx = q * D, dz = r * D, sg = D, r = s, cross = if U
+                          then not U
+                          else S > 0, sAbs = p
+                          + b }
+                      t, W = L, d
+                    else
+                    end
+                  else
+                  end
+                else
+                end
+              else
+              end
+            end
+            if not W then
+              n.laneT = nil
+              return nil
+            end
+            n.laneT = { sAbs = W.sAbs, sg = W.sg, at = e }
+            return W
+          end
+          function k.vbBreathPlan(U, s)
+            local D = K.vb
+            if H.vbBreathPlan == false then
+              return nil
+            elseif D and D.breathRunUntil then
+              if not (s < D.breathRunUntil) then
+                return nil
+              end
+            else
+              return nil
+            end
+            if k.gsBonusFind then
+              if not (k.gsBonusFind()) then
+                return nil
+              end
+            else
+              return nil
+            end
+            local e = k.vbThreats(s)
+            e.sp = e.slow and e.sp or (H.vbBrSpeed or 27)
+            if not e.slow then
+              if H.vbBrRealSpeed ~= false then
+                local n = J.Character and J.Character:FindFirstChildOfClass("Humanoid")
+                if n then
+                  if n.WalkSpeed > e.sp then
+                    e.sp = math.min(n.WalkSpeed * 0.95, H.vbBrSpeedMax or 34)
+                  end
+                end
+              end
+            end
+            local n = U.X
+            local q = U.Z
+            local r = H.vbBrOrbitX or 1324
+            local L = H.vbBrOrbitZ or -866
+            local b = D.orbitAt
+            if if b then s - D.orbitAt > 2 else not b then
+              local I = U and J.Character and J.Character:FindFirstChild("HumanoidRootPart")
+              local d = I and I.AssemblyLinearVelocity
+              D.orbitSg = (d and (n - r) * d.Z - (q - L) * d.X or 0) < 0 and -1 or 1
+            end
+            D.orbitAt = s
+            b = D.brGoal
+            if b then
+              if s - b.at < (H.vbBrKeep or 0.4) then
+                local I, d = P(e, n, q, b.x, b.z, s), math.sqrt((b.x - n) ^ 2 + (b.z - q) ^ 2)
+                if not I then
+                  if d > 4 then
+                    return Vector3.new(b.x, U.Y, b.z),
+                      ("VOIDSBANE: fireballs - running (kept, %.0f studs)"):format(d),
+                      "go"
+                  end
+                end
+              end
+            end
+            local I = D.runHX
+            local d = D.runHZ
+            local Y, F, C = k.vbFightSpot and k.vbFightSpot(), {}, { 12, 18, 24, 30, 38 }
+            for Q, O in ipairs(C) do
+              for V = 0, 23, 1 do
+                Q = V * 3.141592653589793 / 12
+                F[#F + 1] = { n + math.cos(Q) * O, q + math.sin(Q) * O }
+              end
+            end
+            C = {}
+            for Q, O in ipairs(e.zs) do
+              if O.name == "vb bars" and O.bx and O.untilAt > s and O.from < s + 3 then
+                Q = false
+                for V, V in ipairs(C) do
+                  if math.abs(V[1] * O.bx + V[2] * O.bz) > 0.98 then
+                    Q = true
+                    break
+                  end
+                end
+                if not Q then
+                  C[#C + 1] = { O.bx, O.bz }
+                end
+              end
+            end
+            for Q, Q in ipairs(C) do
+              b = { 1, -1 }
+              for O, V in ipairs(b) do
+                O = { 14, 22, 30, 40 }
+                for p, p in ipairs(O) do
+                  F[#F + 1] = { n + Q[1] * V * p, q + Q[2] * V * p }
+                end
+              end
+            end
+            local Q, O, V, p, t = k.vbLaneTarget and k.vbLaneTarget(e, n, q, s)
+            if Q then
+              b = math.min(H.vbLaneAhead or 24, math.max(6, Q.r))
+              O = Q.x + Q.dx * b
+              V = Q.z + Q.dz * b
+              C = { 0, 8, 16, 24, 32, 40 }
+              for W, W in ipairs(C) do
+                if W <= Q.r + 6 then
+                  F[#F + 1] = { Q.x + Q.dx * W, Q.z + Q.dz * W }
+                end
+              end
+              p, t = O, V
+            else
+              p, t = O, V
+            end
+            local function O(V, W)
+              local G, h = V - n, W - q
+              local B = math.sqrt(G * G + h * h)
+              local S = 0.1 * B / e.sp
+              S = if B < (H.vbBrMinRun or 22) then S + (H.vbBrStillW or 3) else S
+              S = (
+                if I
+                  then if B > 0.5 then S + (1 - (G * I + h * d) / B) * (H.vbBrTurnW or 0.3) else S
+                  else S
+              ) + (H.vbMidW or 1) * k.vbMidOver(V, W) / e.sp
+              S = if Y
+                then if p then S else S + 0.15 * math.sqrt((V - Y.X) ^ 2 + (W - Y.Z) ^ 2) / e.sp
+                else S
+              S = if p then S + (H.vbLaneW or 0.08) * math.sqrt((V - p) ^ 2 + (W - t) ^ 2) else S
+              if B > 0.5 then
+                local I = k.vbEdge(V + G / B * 25, W + h / B * 25)
+                S = if I < 12 then S + (12 - I) * (H.vbBrDeadW or 0.06) else S
+              else
+              end
+              if H.vbBrOrbit ~= false then
+                if p then
+                else
+                  if B > 0.5 then
+                    local I, d = V - r, W - L
+                    local r = math.sqrt(I * I + d * d)
+                    S = if r > 1
+                      then S
+                        + (1 - (G * (-d / r) + h * (I / r)) / B * (D.orbitSg or 1)) * (H.vbBrOrbitW or 0.5)
+                        + math.abs(r - (H.vbBrOrbitR or 50)) * (H.vbBrOrbitRW or 0.06)
+                      else S
+                  else
+                  end
+                end
+              else
+              end
+              return S
+            end
+            C = if k.gsWallClear
+              then function(r, L)
+                return k.gsWallClear(U, Vector3.new(r, U.Y, L))
+              end
+              else nil
+            local r, L = k.vbPlanKeep("breath", e, n, q, F, s, O, C)
+            if not r then
+              return nil
+            end
+            if L then
+              b = {}
+              for I, I in ipairs(e.zs) do
+                if I.name == "vb breath pool" then
+                  if I.from > s then
+                    if not I.prov then
+                      if not (H.vbBrDropReal == true) then
+                        b[#b + 1] = I
+                      end
+                    end
+                  else
+                    b[#b + 1] = I
+                  end
+                else
+                  b[#b + 1] = I
+                end
+              end
+              if #b < #e.zs then
+                local I = {}
+                for d, Y in pairs(e) do
+                  I[d] = Y
+                end
+                I.zs = b
+                local d, Y = k.vbPlan(I, n, q, F, s, O, C)
+                if d then
+                  if Y then
+                  else
+                    I = nil
+                    r, L = d, I
+                  end
+                else
+                end
+              else
+              end
+            else
+            end
+            O = D.brGoal
+            if O then
+              if s - (O.at0 or O.at) < (H.vbBrHold or 0.6) then
+                b = math.sqrt((O.x - n) ^ 2 + (O.z - q) ^ 2)
+                if b > 4 then
+                  C = P(e, n, q, O.x, O.z, s)
+                  if
+                    (if C then not C else not L) or C and L and C >= L - (H.vbBrSwitch or 0.15)
+                  then
+                    if not (C and C - s < (H.vbBrHoldMin or 0.5)) then
+                      local e, I =
+                        Vector3.new(O.x, U.Y, O.z),
+                        C and ", hit in " .. string.format("%.1f", C - s) .. "s" or ""
+                      return e,
+                        ("VOIDSBANE: fireballs - running (holding the way, %.0f studs%s)"):format(
+                          b,
+                          I
+                        ),
+                        "go"
+                    end
+                  end
+                end
+              end
+            end
+            O, b = r[1] - n, r[2] - q
+            C = math.sqrt(O * O + b * b)
+            if C > 1 then
+              D.runHX, D.runHZ = O / C, b / C
+            end
+            D.brGoal = { x = r[1], z = r[2], at = s, at0 = s }
+            b, O =
+              Vector3.new(r[1], U.Y, r[2]),
+              L and "least bad, hit in " .. string.format("%.1f", L - s) .. "s" or "clean"
+            return b,
+              ("VOIDSBANE: fireballs - running, %s (%.0f studs)%s"):format(
+                O,
+                C,
+                Q and (Q.cross and " [lane: crossing]" or " [lane]") or ""
+              ),
+              "go"
+          end
+          function k.vbFight(U, s)
+            if H.vbFight == false then
+              return nil
+            end
+            local D = K.vb
+            local e = D and D.lanceGoal
+            if e then
+              if D.lance then
+                if H.vbLanceYield ~= false then
+                  if s - e.at < (H.vbLanceYieldKeep or 0.6) then
+                    local D = math.sqrt((e.x - U.X) ^ 2 + (e.z - U.Z) ^ 2)
+                    if D <= 1.5 then
+                      return U, "VOIDSBANE: rings - holding the last spot", "hold"
+                    end
+                    return Vector3.new(e.x, U.Y, e.z),
+                      ("VOIDSBANE: rings - keeping the last spot (%.0f studs)"):format(D),
+                      "go"
+                  end
+                end
+              end
+            end
+            e = k.vbFightSpot()
+            if K.vb then
+              if not e then
+                return nil
+              end
+            else
+              return nil
+            end
+            if math.sqrt((e.X - U.X) ^ 2 + (e.Z - U.Z) ^ 2) <= (H.vbFightNear or 4) then
+              return nil
+            end
+            return k.vbApproach(U, s, e, "VOIDSBANE: back in range of the boss")
+          end
+          function k.vbLance(U, s)
+            local D = K.vb
+            if D then
+              if D.lance then
+                if k.gsBonusFind then
+                  if not (k.gsBonusFind()) then
+                    return nil
+                  end
+                else
+                  return nil
+                end
+              else
+                return nil
+              end
+            else
+              return nil
+            end
+            local e = k.vbThreats(s)
+            if not e.rings then
+              D.lance = nil
+              D.lanceGoal = nil
+              return nil
+            end
+            local n = U.X
+            local q = U.Z
+            local r = e.ox
+            local L = e.oz
+            if H.vbRingPastOff ~= true then
+              local b, I = math.sqrt((n - r) ^ 2 + (q - L) ^ 2), false
+              for d, Y in ipairs(e.rings) do
+                d = s - Y.L0
+                if
+                  d < 0
+                  or d < Y.life
+                    and v(d, Y.slow, Y.steady, Y.life0) < b + (e.band or 3.5) + (H.vbRingPast or 2)
+                then
+                  I = true
+                  break
+                end
+              end
+              if not I then
+                D.lanceGoal = nil
+                return nil
+              end
+            end
+            local b = k.vbFightSpot and k.vbFightSpot()
+            local I = e.sp
+            local function d(Y, F)
+              local C = (H.vbPlanMoveW or 0.35) * math.sqrt((Y - n) ^ 2 + (F - q) ^ 2) / I
+              C = if b
+                then C + (H.vbPlanFightW or 0.5) * math.sqrt((Y - b.X) ^ 2 + (F - b.Z) ^ 2) / I
+                else C
+              local Q = H.vbDoorCentreW or 0.8
+              if Q > 0 then
+                local O, V = Y - r, F - L
+                local p, t = math.sqrt(O * O + V * V), (e.dhw or 9) - (e.bodyD or 2.5)
+                if p > (e.dhw or 9) then
+                  if t > 0 then
+                    local W, G, h = math.atan2(V, O), math.atan(t / p), C
+                    for O, V in ipairs(e.rings) do
+                      O = math.max(s - V.L0, 0)
+                      if O < V.life then
+                        if V.rMax >= p then
+                          if v(O, V.slow, V.steady, V.life0) < p then
+                            local O = math.huge
+                            for p = 1, #V.doors, 1 do
+                              local t = math.abs(
+                                (W - V.doors[p] + 3.141592653589793) % 6.283185307179586
+                                  - 3.141592653589793
+                              )
+                              O = if t < O then t else O
+                            end
+                            h = if O <= G then h + (O / G) ^ 2 * Q else h
+                          else
+                          end
+                        else
+                        end
+                      else
+                      end
+                    end
+                    C = h
+                  else
+                  end
+                else
+                end
+              else
+              end
+              return C + (H.vbMidW or 1) * k.vbMidOver(Y, F) / I
+            end
+            local I = D.lanceGoal
+            if I then
+              if s - I.at < (H.vbLanceKeep or 0.5) then
+                local Y = math.max(0, (I.dep or s) - s)
+                e.relax = I.relax
+                local F, C = P(e, n, q, I.x, I.z, s, Y)
+                e.relax = nil
+                if not F then
+                  if C <= I.soft + (H.vbLanceSoftSlack or 2) then
+                    local P = math.sqrt((I.x - n) ^ 2 + (I.z - q) ^ 2)
+                    if Y > 0.05 then
+                      return U,
+                        ("VOIDSBANE: rings - waiting in the opening (%.1fs), then %.0f studs"):format(
+                          Y,
+                          P
+                        ),
+                        "hold"
+                    end
+                    return Vector3.new(I.x, U.Y, I.z),
+                      ("VOIDSBANE: rings - kept spot (%.0f studs%s)"):format(
+                        P,
+                        C > 0 and ", " .. C .. " later rings to slide for" or ""
+                      ),
+                      P < 1.5 and "hold" or "go"
+                  end
+                end
+              end
+            end
+            local P, Y, F = math.sqrt((n - r) ^ 2 + (q - L) ^ 2), { 0 }, {}
+            for C, Q in ipairs(e.rings) do
+              I = math.max(s - Q.L0, 0)
+              if
+                I < Q.life
+                and Q.rMax >= P + e.band
+                and v(I, Q.slow, Q.steady, Q.life0) < P + e.band
+              then
+                local O, V = I, Q.life
+                for p = 1, 14, 1 do
+                  C = (O + V) / 2
+                  if v(C, Q.slow, Q.steady, Q.life0) < P + e.band then
+                    O = C
+                  else
+                    V = C
+                  end
+                end
+                O = Q.L0 + V - s + 0.1
+                if O > 0.05 then
+                  if O < (H.vbRingWaitMax or 4) then
+                    F[#F + 1] = O
+                  end
+                end
+              end
+            end
+            table.sort(F)
+            for C = 1, math.min(2, #F), 1 do
+              Y[#Y + 1] = F[C]
+            end
+            I, F = { { n, q, 0 } }, H.vbLanceMinR or 16
+            local C, Q = { F, F + 3, F + 6 }, { -24, -16, -8, -4, 0, 4, 8, 13, 20, 28 }
+            for O, V in ipairs(Q) do
+              O = P + V
+              if O >= F then
+                if O <= 118 then
+                  C[#C + 1] = O
+                end
+              end
+            end
+            for O, O in ipairs(C) do
+              for V = 0, 71, 1 do
+                Q = V * 3.141592653589793 / 36
+                I[#I + 1] = { r + math.cos(Q) * O, L + math.sin(Q) * O, 0 }
+              end
+            end
+            for O = 2, #Y, 1 do
+              local V, p, t = Y[O], ipairs, { F, F + 3, F + 6, P - 16, P - 8, P }
+              for O, W in p(t) do
+                if W >= F then
+                  for p = 0, 71, 1 do
+                    O = p * 3.141592653589793 / 36
+                    I[#I + 1] = { r + math.cos(O) * W, L + math.sin(O) * W, V }
+                  end
+                end
+              end
+            end
+            if b then
+              I[#I + 1] = { b.X, b.Z, 0 }
+              Q, Y = b.X - n, b.Z - q
+              C, P = math.sqrt(Q * Q + Y * Y), { 8, 16, 24 }
+              for b, b in ipairs(P) do
+                if b < C then
+                  I[#I + 1] = { n + Q / C * b, q + Y / C * b, 0 }
+                end
+              end
+            end
+            Q, C, Y = D.bossHome, H.vbArenaR or 175, {}
+            for b, O in ipairs(I) do
+              P = math.sqrt((O[1] - r) ^ 2 + (O[2] - L) ^ 2)
+              if b == 1 or P >= F - 1 then
+                if typeof(Q) ~= "Vector3" then
+                  Y[#Y + 1] = O
+                elseif (O[1] - Q.X) ^ 2 + (O[2] - Q.Z) ^ 2 <= C * C then
+                  Y[#Y + 1] = O
+                end
+              end
+            end
+            C = if k.gsWallClear
+              then function(b, O)
+                return k.gsWallClear(U, Vector3.new(b, U.Y, O))
+              end
+              else nil
+            P, I, Q = k.vbPlanKeep("lance", e, n, q, Y, s, d, C)
+            if not P then
+              return nil
+            end
+            F = nil
+            if I then
+              if H.vbRingRelax ~= false then
+                e.relax = true
+                local b, O, V = k.vbPlan(e, n, q, Y, s, d, C)
+                e.relax = nil
+                if b then
+                  if O then
+                  else
+                    local e = true
+                    P, I, Q, F = b, O, V, e
+                  end
+                else
+                end
+              else
+              end
+            else
+            end
+            C = P[4] or 0
+            D.lanceGoal = { x = P[1], z = P[2], at = s, soft = Q or 0, dep = s + C, relax = F }
+            d = math.sqrt((P[1] - n) ^ 2 + (P[2] - q) ^ 2)
+            if C > 0.05 then
+              return U,
+                ("VOIDSBANE: rings - waiting in the opening (%.1fs), then %.0f studs"):format(C, d),
+                "hold"
+            end
+            F = I and "least bad, hit in " .. string.format("%.1f", I - s) .. "s"
+              or (Q > 0 and Q .. " later rings to slide for" or "clean")
+            return Vector3.new(P[1], U.Y, P[2]),
+              ("VOIDSBANE: rings - %s spot (%.0f studs, %.0f from the middle)"):format(
+                F,
+                d,
+                math.sqrt((P[1] - r) ^ 2 + (P[2] - L) ^ 2)
+              ),
+              d < 1.5 and "hold" or "go"
+          end
+          function k.vbBreathRun(U, s)
+            local D = K.vb
+            if D then
+              if D.breathRunUntil then
+                if not (s < D.breathRunUntil) then
+                  return nil
+                end
+              else
+                return nil
+              end
+            else
+              return nil
+            end
+            if k.gsBonusFind then
+              if not (k.gsBonusFind()) then
+                return nil
+              end
+            else
+              return nil
+            end
+            local e, e, P = D.lastPassive, Vector3.new(1341.11, U.Y, -890.04), H.vbRunR or 45
+            local n, q = U.X - e.X, U.Z - e.Z
+            local r = math.atan2(q, n)
+            D.runDir = D.runDir or 1
+            n = (H.vbRunAhead or 30) / P
+            q = r + D.runDir * n
+            local L = Vector3.new(e.X + math.cos(q) * P, U.Y, e.Z + math.sin(q) * P)
+            if k.gsWallClear then
+              if k.gsWallClear(U, L) then
+              else
+                D.runDir = -D.runDir
+                q = r + D.runDir * n
+                L = Vector3.new(e.X + math.cos(q) * P, U.Y, e.Z + math.sin(q) * P)
+              end
+            else
+            end
+            return L, ("VOIDSBANE: breath run (%.1fs)"):format(D.breathRunUntil - s)
+          end
+          function k.vbPathCut(U, s, D)
+            if K.vb then
+              if k.gsBonusFind then
+                if not (k.gsBonusFind()) then
+                  return nil
+                end
+              else
+                return nil
+              end
+            else
+              return nil
+            end
+            local e = os.clock()
+            if K.vb.noCutAt then
+              if e - K.vb.noCutAt < 0.1 then
+                return nil
+              end
+            end
+            local P, n = s.X - U.X, s.Z - U.Z
+            local q = math.sqrt(P * P + n * n)
+            if q < 0.5 then
+              return nil
+            end
+            local r, L, b, I, d = P / q, n / q, math.max(tonumber(D) or 24, 12), {}, {}
+            local function Y(F, C, Q, O)
+              local V, p = C - F.cx, Q - F.cz
+              if F.r then
+                return V * V + p * p <= (F.r + O) ^ 2
+              end
+              if not F.ax then
+                return false
+              end
+              return math.abs(V * F.ax + p * F.az) <= F.ha + O
+                and math.abs(V * F.bx + p * F.bz) <= F.hb + O
+            end
+            for F, F in ipairs(K.zones) do
+              if l[F.name] then
+                if F.cx then
+                  if F.untilAt > e then
+                    if F.from - e <= 2 then
+                      if not (Y(F, U.X, U.Z, 0)) then
+                        I[#I + 1] = F
+                      end
+                    end
+                  end
+                end
+              end
+              if F.name == "vb meteor orb" then
+                if F.moving then
+                  if F.untilAt > e then
+                    d[#d + 1] = F
+                  end
+                end
+              end
+            end
+            if #I == 0 then
+              if #d == 0 then
+                return nil
+              end
+            end
+            n, D = math.min(q, b * (H.vbCutAhead or 1.2)), 1.5
+            while D <= n do
+              local n, F, C, Q = U.X + r * D, U.Z + L * D, e + D / b, false
+              for b, b in ipairs(I) do
+                if b.from <= C + 0.1 and b.untilAt >= C and Y(b, n, F, 1) then
+                  Q = true
+                  break
+                end
+              end
+              if Q then
+              else
+                for b, I in ipairs(d) do
+                  if C <= I.untilAt then
+                    b = (I.offset or 0) + I.speed * math.max(C - I.pathStart, 0)
+                    P, q = I.ox + I.dx * b, I.oz + I.dz * b
+                    if (n - P) ^ 2 + (F - q) ^ 2 <= ((I.r or 14) + 2) ^ 2 then
+                      Q = true
+                      break
+                    end
+                  end
+                end
+              end
+              if Q then
+                n = math.max(0, D - 2)
+                K.vb.cutAt, K.vb.cutD = e, D
+                return Vector3.new(U.X + r * n, s.Y, U.Z + L * n)
+              end
+              D += 1.5
+            end
+            return nil
+          end
+          function k.vbRune(U, s)
+            local D = K.vb
+            local e, P = D and D.rune, D and D.glyph
+            if e then
+              if P then
+                if k.gsBonusFind then
+                  if not (k.gsBonusFind()) then
+                    return nil
+                  end
+                else
+                  return nil
+                end
+              else
+                return nil
+              end
+            else
+              return nil
+            end
+            local n = a:GetServerTimeNow()
+            local q, r, L =
+              math.clamp(e.value + e.rate * (n - e.at), 0, e.max),
+              math.clamp(e.value + e.rate * (n + (H.vbRuneAhead or 3) - e.at), 0, e.max),
+              math.sqrt((U.X - P.X) ^ 2 + (U.Z - P.Z) ^ 2)
+            local b, I =
+              math.max(H.vbRuneLow or 30, 12 + L / (H.vbRuneSpeed or 6)), H.vbRuneHigh or 40
+            if D.runeGo then
+              if q >= I then
+                D.runeGo = false
+                return nil
+              end
+            elseif r < b then
+              D.runeGo = true
+            elseif q < b then
+              D.runeGo = true
+            else
+              return nil
+            end
+            r = k.vbFightSpot and k.vbFightSpot()
+            b = r and Vector3.new(r.X, U.Y, r.Z) or Vector3.new(P.X, U.Y, P.Z)
+            L = math.sqrt((U.X - b.X) ^ 2 + (U.Z - b.Z) ^ 2)
+            D = ("VOIDSBANE: rune %.0f/%.0f (%s) - %s"):format(
+              q,
+              e.max,
+              e.rate > 0 and "charging" or "draining",
+              L > 3 and "to the rune spot" or "on the rune spot"
+            )
+            if L <= 3 then
+              return b, D, "hold"
+            end
+            n, P, L = k.vbApproach(U, s, b, D, q <= (H.vbRuneCrit or 4) or N.vbRuneFirst == true)
+            if n then
+              return n, P, L
+            end
+            return b, D, "go"
+          end
+          function k.vbBeams(U, s)
+            local D = K.vb
+            local e = D and D.beams
+            if e then
+              if k.gsBonusFind then
+                if not (k.gsBonusFind()) then
+                  return nil
+                end
+              else
+                return nil
+              end
+            else
+              return nil
+            end
+            local P, n = e.cfg, a:GetServerTimeNow()
+            local q = P.closeStart + P.closeTime
+            local r, L, b =
+              q - ((P.greenLead or 0.5) - (P.greenLate or 0.2)),
+              q + (P.greenTime or 3.4) + (P.convergeTime or 1.2) + 0.2,
+              false
+            for I, d in pairs(e.beams) do
+              local e = d.center
+              I = n - (tonumber(d.startAt) or n)
+              if typeof(e) == "Vector3" then
+                if I <= L + 0.6 then
+                  local Y, F = U.X - e.X, U.Z - e.Z
+                  q = math.sqrt(Y * Y + F * F)
+                  if I < r + (H.vbBeamsGreenWait or 0.15) then
+                    Y, F =
+                      I <= P.closeStart and d.r0 or math.max(
+                        P.endRadius or 3,
+                        d.r0 + (P.endRadius - d.r0) * (I - P.closeStart) / P.closeTime
+                      ),
+                      Vector3.new(e.X, U.Y, e.Z)
+                    if q > (H.vbBeamsHold or 2.5) then
+                      if H.vbBeamsWait ~= false then
+                        if I < r - (H.vbBeamsLead or 1) - q / (H.vbBeamsSpeed or 22) then
+                          return nil
+                        end
+                      end
+                    end
+                    if q > (H.vbBeamsHold or 2.5) then
+                      if H.vbBeamsPlan ~= false and k.vbPlan then
+                        local C = k.vbThreats(s, { ["vb beams blast"] = true })
+                        local Q, O = s - n, tonumber(d.startAt) or n
+                        C.beam = {
+                          cx = e.X,
+                          cz = e.Z,
+                          r0 = d.r0,
+                          cs = O + P.closeStart + Q,
+                          ct = P.closeTime,
+                          er = P.endRadius or 3,
+                          w = (P.wallHalf or 6) + (H.vbBeamPad or 3),
+                          gr = O + r + Q,
+                        }
+                        local n = U.X
+                        local d = U.Z
+                        local O, V, p, t =
+                          { { e.X, e.Z }, { n, d } },
+                          (e.X - n) / q,
+                          (e.Z - d) / q,
+                          { 6, 12, 18, 24, 32, 40, 50, 60 }
+                        for W, W in ipairs(t) do
+                          if W < q then
+                            Q = { 0, -8, 8, -16, 16 }
+                            for t, t in ipairs(Q) do
+                              O[#O + 1] = { n + V * W - p * t, d + p * W + V * t }
+                            end
+                          end
+                        end
+                        V = { 2, 4 }
+                        for t, t in ipairs(V) do
+                          for W = 0, 7, 1 do
+                            p = W * 3.141592653589793 / 4
+                            O[#O + 1] = { e.X + math.cos(p) * t, e.Z + math.sin(p) * t }
+                          end
+                        end
+                        p, V = k.vbPlan(C, n, d, O, s, function(O, t)
+                          return math.sqrt((O - e.X) ^ 2 + (t - e.Z) ^ 2) / C.sp
+                            + 0.2 * math.sqrt((O - n) ^ 2 + (t - d) ^ 2) / C.sp
+                        end, nil)
+                        if p then
+                          Q = math.sqrt((p[1] - n) ^ 2 + (p[2] - d) ^ 2)
+                          return Vector3.new(p[1], U.Y, p[2]),
+                            ("VOIDSBANE: lasers - into the middle (%.0f studs, ring at %.0f, green in %.1fs%s)"):format(
+                              q,
+                              Y,
+                              r - I,
+                              V and ", least bad" or ""
+                            ),
+                            Q < 1.5 and "hold" or "go"
+                        end
+                      end
+                      return F,
+                        ("VOIDSBANE: lasers - into the middle (%.0f studs, ring at %.0f, green in %.1fs)"):format(
+                          q,
+                          Y,
+                          r - I
+                        ),
+                        "go"
+                    end
+                    return F,
+                      ("VOIDSBANE: lasers - in the middle, green in %.1fs"):format(r - I),
+                      "hold"
+                  end
+                  Y = (P.blastRadius or 65) + (H.vbBeamsOut or 10)
+                  if q < (P.blastRadius or 65) + (H.vbBeamsIn or 7) then
+                    local P = k.vbThreats(s, { ["vb beams blast"] = true })
+                    local n = s + (L - I)
+                    local r = U.X
+                    local d, C, Q = U.Z, {}, ipairs
+                    F = { Y + 2, Y + 8 }
+                    for O, V in Q(F) do
+                      for F = 0, 47, 1 do
+                        O = F * 3.141592653589793 / 24
+                        C[#C + 1] = { e.X + math.cos(O) * V, e.Z + math.sin(O) * V }
+                      end
+                    end
+                    local function e(F, O)
+                      local V, p =
+                        math.sqrt((F - r) ^ 2 + (O - d) ^ 2) / P.sp,
+                        (H.vbMidW or 1) * k.vbMidOver(F, O) / P.sp
+                      if s + V > n - 0.3 then
+                        return V + p + 50
+                      end
+                      return V + p
+                    end
+                    Q = if k.gsWallClear
+                      then function(n, F)
+                        return k.gsWallClear(U, Vector3.new(n, U.Y, F))
+                      end
+                      else nil
+                    local n, F = k.vbPlan(P, r, d, C, s, e, Q)
+                    if n then
+                      return Vector3.new(n[1], U.Y, n[2]),
+                        ("VOIDSBANE: lasers green - out past the blast (%.0f of %.0f, blast in %.1fs%s)"):format(
+                          q,
+                          Y,
+                          L - I,
+                          F and ", least bad" or ""
+                        ),
+                        "go"
+                    end
+                  end
+                  b = true
+                else
+                end
+              else
+              end
+            end
+            if not b then
+              D.beams = nil
+            end
+            return nil
+          end
+          function k.vbOut(U, s)
+            if not (K.vb and k.gsBonusFind and k.gsBonusFind()) then
+              return nil
+            end
+            local D, e, P, n = H.vbOutLead or 0.8, H.vbOutMargin or 1.5, {}, {}
+            for q, q in ipairs(K.zones) do
+              if l[q.name] then
+                if q.cx then
+                  if q.untilAt > s then
+                    if q.from - s <= 6 then
+                      P[#P + 1] = q
+                    end
+                  end
+                end
+              end
+              if q.name == "vb meteor orb" then
+                if q.moving then
+                  if q.untilAt > s then
+                    n[#n + 1] = q
+                  end
+                end
+              end
+            end
+            if #P == 0 then
+              if #n == 0 then
+                if not (K.vb.breathRunUntil and s < K.vb.breathRunUntil) then
+                  return nil
+                end
+              end
+            end
+            local function l(q, r, L, b)
+              local I, d = r - q.cx, L - q.cz
+              if q.r then
+                return I * I + d * d <= (q.r + b) ^ 2
+              end
+              if not q.ax then
+                return false
+              end
+              r, L = I * q.ax + d * q.az, I * q.bx + d * q.bz
+              return math.abs(r) <= q.ha + b and math.abs(L) <= q.hb + b
+            end
+            local q = U.X
+            local r = U.Z
+            if #n > 0 and H.vbOrbGap ~= false then
+              local L = H.vbOrbClear or 3
+              local function b(I, d, Y)
+                local F, C = d - I.ox, Y - I.oz
+                d = F * I.dx + C * I.dz
+                if d <= 0 then
+                  return nil, 0
+                end
+                return (I.pathStart or s) + d / math.max(I.speed, 1),
+                  math.abs(-F * I.dz + C * I.dx) - (I.r or 14)
+              end
+              local I, d = math.huge
+              local Y = false
+              for F, F in ipairs(n) do
+                local C, Q = b(F, q, r)
+                if C and C > s - 0.15 and C <= F.untilAt + 0.2 then
+                  if C < I then
+                    I = C
+                    d = F.pathStart
+                  else
+                  end
+                  Y = if C - s <= (H.vbOrbHorizon or 3) then if Q < L then true else Y else Y
+                else
+                end
+              end
+              if Y then
+                local Y = H.vbOrbWave or 0.7
+                local function F(C, Q)
+                  local O = math.huge
+                  for V, V in ipairs(n) do
+                    local p, t = b(V, C, Q)
+                    O = if p
+                        and p > s - 0.15
+                        and (p <= I + Y or d and V.pathStart and math.abs(V.pathStart - d) < 0.05)
+                      then if p <= V.untilAt + 0.2 then if t < O then t else O else O
+                      else O
+                  end
+                  return O
+                end
+                local b = H.vbOutSpeed or 24
+                local function I(d, Y, C)
+                  local Q = math.max(4, math.ceil(C / 3))
+                  for O = 1, Q - 1, 1 do
+                    local V = O / Q
+                    local Q, p, t = q + (d - q) * V, r + (Y - r) * V, s + C * V / b
+                    for d, Y in ipairs(n) do
+                      if t <= Y.untilAt then
+                        d = (Y.offset or 0) + Y.speed * math.max(t - Y.pathStart, 0)
+                        O, V = Y.ox + Y.dx * d, Y.oz + Y.dz * d
+                        if (Q - O) ^ 2 + (p - V) ^ 2 <= ((Y.r or 14) + 1) ^ 2 then
+                          return false
+                        end
+                      end
+                    end
+                    for d, d in ipairs(P) do
+                      if d.from <= t then
+                        if d.untilAt >= t then
+                          if l(d, Q, p, 0.5) then
+                            return false
+                          end
+                        end
+                      end
+                    end
+                  end
+                  return true
+                end
+                local function d(Y, C, Q)
+                  for O, O in ipairs(P) do
+                    if O.from <= s + Q / b + (H.vbGapSpotAhead or 1.5) then
+                      if O.untilAt >= s then
+                        if l(O, Y, C, 1) then
+                          return false
+                        end
+                      end
+                    end
+                  end
+                  return true
+                end
+                local b = K.vb.gapGoal
+                if b then
+                  if s - b.at < (H.vbGapKeep or 1.2) then
+                    local Y = math.sqrt((b.x - q) ^ 2 + (b.z - r) ^ 2)
+                    if F(b.x, b.z) >= L - 1 and d(b.x, b.z, Y) and (Y < 1.5 or I(b.x, b.z, Y)) then
+                      return Vector3.new(b.x, U.Y, b.z),
+                        ("VOIDSBANE: purple orbs - in the gap (kept, %.0f studs)"):format(Y)
+                    end
+                  end
+                end
+                b = n[1]
+                local Y, C = b.ox, b.oz
+                local Q, O = q - Y, r - C
+                local V, p, t, W, G =
+                  math.max(math.sqrt(Q * Q + O * O), 1), math.atan2(O, Q), math.huge, -math.huge
+                local h, h, B, S = -math.huge, 0, {}, { 0, 5, 10, -5, 15, 22, 30, -10 }
+                b = nil
+                for Z, u in ipairs(S) do
+                  O = V + u
+                  if O > 8 then
+                    for V = -40, 40, 1 do
+                      u = p + math.rad(V * 1.5)
+                      Z, V = Y + math.cos(u) * O, C + math.sin(u) * O
+                      Q = math.sqrt((Z - q) ^ 2 + (V - r) ^ 2)
+                      if d(Z, V, Q) then
+                        local Y = F(Z, V)
+                        if Y >= L then
+                          local L = Q + (H.vbOutMidW or 0.8) * k.vbMidOver(Z, V)
+                          local C, u = L < t and I(Z, V, Q)
+                          if C then
+                            local I = k.gsWallClear
+                            u = if I then k.gsWallClear(U, Vector3.new(Z, U.Y, V)) else not I
+                          else
+                            u = C
+                          end
+                          if u then
+                            t, b, W = L, Vector3.new(Z, U.Y, V), Y
+                          else
+                          end
+                        else
+                          B[#B + 1] = { Z, V, 0 }
+                        end
+                      else
+                      end
+                    end
+                  else
+                  end
+                end
+                O = false
+                if b then
+                else
+                  if H.vbOrbYield ~= false then
+                    p = O
+                    for L, L in ipairs(P) do
+                      if L.from - s <= D and l(L, q, r, e) then
+                        p = true
+                        break
+                      end
+                    end
+                    O = p
+                  else
+                  end
+                end
+                d = nil
+                if (if b then not b else not O) and #B > 0 and k.vbPlan then
+                  local L = k.vbThreats(s)
+                  p, F = k.vbPlanKeep("gap", L, q, r, B, s, function(I, Y)
+                    return math.sqrt((I - q) ^ 2 + (Y - r) ^ 2) / L.sp
+                      + (H.vbMidW or 1) * k.vbMidOver(I, Y) / L.sp
+                  end, nil)
+                  if p then
+                    G, h = Vector3.new(p[1], U.Y, p[2]), F and F - s or 9
+                    d = G
+                  else
+                    d = G
+                  end
+                else
+                  d = G
+                end
+                d = b or d
+                if d then
+                  K.vb.outGoal = nil
+                  K.vb.gapGoal = { x = d.X, z = d.Z, at = s }
+                  S = math.sqrt((d.X - q) ^ 2 + (d.Z - r) ^ 2)
+                  return d,
+                    ("VOIDSBANE: purple orbs - into the gap (%.0f studs, %.0f clear%s)"):format(
+                      S,
+                      b and W or h,
+                      b and "" or ", least bad"
+                    )
+                end
+              end
+            end
+            local L
+            for b, b in ipairs(P) do
+              if b.from - s <= D and l(b, q, r, e) then
+                L = b
+                break
+              end
+            end
+            D = K.vb
+            if not L and D.breathRunUntil and s < D.breathRunUntil then
+              L = { name = "vb breath run", cx = q, cz = r }
+              L.r = H.vbBreathRunR or 27
+              L.from = s
+              L.untilAt = s + 0.5
+              L.virtual = true
+            else
+            end
+            if not L and #n > 0 then
+              for b, I in ipairs(n) do
+                for d = 0, 0.8, 0.2 do
+                  b = s + d
+                  if b <= I.untilAt then
+                    d = (I.offset or 0) + I.speed * math.max(b - I.pathStart, 0)
+                    local b, Y = I.ox + I.dx * d, I.oz + I.dz * d
+                    if (q - b) ^ 2 + (r - Y) ^ 2 <= ((I.r or 14) + 1.5) ^ 2 then
+                      L = { name = "vb orb dodge", cx = q, cz = r }
+                      L.r = H.vbOrbStep or 9
+                      L.from = s
+                      L.untilAt = s + 0.6
+                      L.virtual = true
+                      break
+                    end
+                  end
+                end
+                if L then
+                  break
+                end
+              end
+            else
+            end
+            if not L then
+              D.outGoal = nil
+              return nil
+            end
+            local b
+            if L.name == "vb throw inner" and H.vbThrowBoth ~= false then
+              for I, I in ipairs(P) do
+                if
+                  I.name == "vb throw outer"
+                  and I.cx
+                  and math.abs(I.cx - L.cx) < 1
+                  and math.abs(I.cz - L.cz) < 1
+                then
+                  b = {}
+                  b[L] = true
+                  b[I] = true
+                  L = I
+                  break
+                end
+              end
+            else
+            end
+            local I = H.vbOutSpeed or 24
+            local d, Y, F = math.huge, D.outGoal, k.vbFightSpot and k.vbFightSpot()
+            local function C(Q, O)
+              if not F then
+                return 0
+              end
+              return math.sqrt((Q - F.X) ^ 2 + (O - F.Z) ^ 2) - math.sqrt(
+                (q - F.X) ^ 2 + (r - F.Z) ^ 2
+              )
+            end
+            local function F(Q, O, V)
+              for p, t in ipairs(n) do
+                if V <= t.untilAt then
+                  p = (t.offset or 0) + t.speed * math.max(V - t.pathStart, 0)
+                  local n, V = t.ox + t.dx * p, t.oz + t.dz * p
+                  if (Q - n) ^ 2 + (O - V) ^ 2 <= ((t.r or 14) + e + 1) ^ 2 then
+                    return true
+                  end
+                end
+              end
+              return false
+            end
+            local function n(Q, O, V)
+              local p = s + V / I
+              if L.ax then
+                if L.name == "vb bars" then
+                  if H.vbBarNoCross ~= false then
+                    if L.from <= p then
+                      if L.untilAt >= s then
+                        if
+                          ((q - L.cx) * L.ax + (r - L.cz) * L.az) * ((Q - L.cx) * L.ax + (O - L.cz) * L.az)
+                          < 0
+                        then
+                          return false
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              for t, t in ipairs(P) do
+                if t.from <= p + 0.6 then
+                  if l(t, Q, O, e) then
+                    return false
+                  end
+                end
+              end
+              if F(Q, O, p) then
+                return false
+              elseif F(Q, O, p + 0.4) then
+                return false
+              end
+              p = math.max(4, math.ceil(V / (H.vbWayStep or 3)))
+              for t = 1, p - 1, 1 do
+                local W = t / p
+                local p, G, h = q + (Q - q) * W, r + (O - r) * W, s + V * W / I
+                if F(p, G, h) then
+                  return false
+                end
+                for V, V in ipairs(P) do
+                  if V ~= L then
+                    if not (b and b[V]) then
+                      if V.from <= h then
+                        if V.untilAt >= h then
+                          if l(V, p, G, 0) then
+                            return false
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+                if L.r then
+                  if H.vbOutRoundDeeper ~= false then
+                    if L.from <= h then
+                      if L.untilAt >= h then
+                        t = math.sqrt((p - L.cx) ^ 2 + (G - L.cz) ^ 2)
+                        if t < L.r + e then
+                          if t < math.sqrt((q - L.cx) ^ 2 + (r - L.cz) ^ 2) - 0.5 then
+                            return false
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              if L.virtual then
+                if l(L, Q, O, 0) then
+                  return false
+                end
+              end
+              if b then
+                if l(L, Q, O, e) then
+                  return false
+                end
+              end
+              return true
+            end
+            if
+              Y
+              and s - Y.at < (H.vbOutKeep or 0.7)
+              and (Y.cur == L.name or H.vbOutKeepAny ~= false and not l(L, Y.x, Y.z, e))
+            then
+              local Q = math.sqrt((Y.x - q) ^ 2 + (Y.z - r) ^ 2)
+              if Q > 2 then
+                if n(Y.x, Y.z, Q) then
+                  local O, V = Vector3.new(Y.x, U.Y, Y.z), L.name:sub(4)
+                  return O, ("VOIDSBANE: out of the %s (kept, %.0f studs)"):format(V, Q)
+                end
+              end
+            end
+            if L.ax and L.name == "vb bars" then
+              local Q, O = q - L.cx, r - L.cz
+              local V, p, t, W = Q * L.ax + O * L.az, { 1, -1 }, math.huge
+              Q, O = 0, 1
+              for G, h in ipairs(p) do
+                G = L.ha + e + 1.5 - h * V
+                local V, B = q + L.ax * h * G, r + L.az * h * G
+                local S = G + (H.vbOutBossW or 0.5) * C(V, B)
+                if S < t then
+                  if n(V, B, G) then
+                    local Z = Vector3.new(V, U.Y, B)
+                    if k.gsWallClear then
+                      if k.gsWallClear(U, Z) then
+                        t, W, Q, O = S, Z, G, h
+                      else
+                      end
+                    else
+                      t, W, Q, O = S, Z, G, h
+                    end
+                  else
+                  end
+                else
+                end
+              end
+              if W then
+                D.outGoal = { x = W.X, z = W.Z, at = s, cur = L.name, hx = L.ax * O, hz = L.az * O }
+                p = table.pack(math.max(0, L.from - s))
+                return W,
+                  ("VOIDSBANE: across the yellow bar (%.0f studs, live in %.2fs)"):format(
+                    Q,
+                    p[1]
+                  )
+              end
+            end
+            n = H.vbOutDists or { 5, 8, 12, 16, 22, 28, 36, 44, 54, 66 }
+            local Q
+            for O = 0, 23, 1 do
+              local V = O * 3.141592653589793 / 12
+              local p, t = math.cos(V), math.sin(V)
+              for W, G in ipairs(n) do
+                local h, B, S, Z = q + p * G, r + t * G, s + G / I, false
+                for u, u in ipairs(P) do
+                  if u.from <= S + 0.6 and l(u, h, B, e) then
+                    Z = true
+                    break
+                  end
+                end
+                Z = if if Z then not Z else L.virtual then if l(L, h, B, 0) then true else Z else Z
+                Z = if if Z then not Z else b
+                  then if l(L, h, B, e)
+                    then true
+                    else if k.vbEdge(h, B) < (H.vbEdgeMin or 3) then true else Z
+                  else Z
+                if
+                  not (Z or (if F(h, B, S) then true else if F(h, B, S + 0.4) then true else Z))
+                then
+                  V = G + (H.vbOutMidW or 0.8) * k.vbMidOver(h, B) + (H.vbOutBossW or 0.5) * C(h, B)
+                  V = if Y and s - Y.at < 1.5
+                    then if Y.hx then V + (1 - (p * Y.hx + t * Y.hz)) * (H.vbOutTurn or 8) else V
+                    else V
+                  O, W = math.max(4, math.ceil(G / (H.vbWayStep or 3))), false
+                  for S = 1, O - 1, 1 do
+                    local Z = S / O
+                    local O, u, c, y = q + p * G * Z, r + t * G * Z, s + G * Z / I, false
+                    for G, G in ipairs(P) do
+                      if
+                        G ~= L
+                        and not (b and b[G])
+                        and G.from <= c
+                        and G.untilAt >= c
+                        and l(G, O, u, 0)
+                      then
+                        y = true
+                        break
+                      end
+                    end
+                    if (if y then not y else L.ax) and L.name == "vb bars" and L.from <= c then
+                      if L.untilAt >= c then
+                        Z = math.abs((O - L.cx) * L.ax + (u - L.cz) * L.az)
+                        y = if Z < math.abs((q - L.cx) * L.ax + (r - L.cz) * L.az) - 0.5
+                          then if Z < L.ha + 0.5 then true else y
+                          else y
+                      else
+                      end
+                    else
+                    end
+                    if
+                      (if y then not y else L.r)
+                      and H.vbOutRoundDeeper ~= false
+                      and L.from <= c
+                    then
+                      if L.untilAt >= c then
+                        S = math.sqrt((O - L.cx) ^ 2 + (u - L.cz) ^ 2)
+                        y = if S < L.r + e
+                          then if S < math.sqrt((q - L.cx) ^ 2 + (r - L.cz) ^ 2) - 0.5
+                            then true
+                            else y
+                          else y
+                      else
+                      end
+                    else
+                    end
+                    if y or (if F(O, u, c) then true else y) then
+                      W = true
+                      break
+                    end
+                  end
+                  if W then
+                  else
+                    if V < d then
+                      local b, F = Vector3.new(h, U.Y, B), k.gsWallClear
+                      if if F then k.gsWallClear(U, b) else not F then
+                        D.outPick = { x = h, z = B, hx = p, hz = t }
+                        d, Q = V, b
+                      else
+                      end
+                    else
+                    end
+                  end
+                  break
+                end
+              end
+            end
+            if (if Q then not Q else k.vbPlan) and H.vbOutPlan ~= false then
+              local b, F = k.vbThreats(s), {}
+              for O = 0, 23, 1 do
+                Y = O * 3.141592653589793 / 12
+                for O, O in ipairs(n) do
+                  F[#F + 1] = { q + math.cos(Y) * O, r + math.sin(Y) * O }
+                end
+              end
+              if H.vbOutLanes ~= false then
+                local O, V
+                for p, p in ipairs(b.zs) do
+                  if p.name == "vb bars" and p.bx and p.untilAt > s then
+                    O, V = p.bx, p.bz
+                    break
+                  end
+                end
+                if O then
+                  local p = { 1, -1 }
+                  for t, t in ipairs(p) do
+                    for W = 8, 88, 8 do
+                      F[#F + 1] = { q + O * t * W, r + V * t * W }
+                    end
+                  end
+                  p = k.vbLaneTarget and k.vbLaneTarget(b, q, r, s)
+                  if p and p.cross then
+                    local t = { 1, -1 }
+                    for W, W in ipairs(t) do
+                      for t = 0, 80, 10 do
+                        F[#F + 1] = { p.x + O * W * t, p.z + V * W * t }
+                      end
+                    end
+                  end
+                end
+              end
+              if H.vbOutWaitBar ~= false then
+                local O
+                for V, V in ipairs(b.zs) do
+                  O = if V.name == "vb bars"
+                      and V.ax
+                      and V.from <= s + 0.2
+                      and V.untilAt > s
+                    then if V.untilAt < s + 2
+                      then if math.abs((q - V.cx) * V.ax + (r - V.cz) * V.az) < (V.ha or 6) + 12
+                        then if O
+                          then if V.untilAt - s < O then V.untilAt - s else O
+                          else V.untilAt - s
+                        else O
+                      else O
+                    else O
+                end
+                if O then
+                  for V = 1, #F, 1 do
+                    F[#F + 1] = { F[V][1], F[V][2], O + 0.05 }
+                  end
+                end
+              end
+              local O = if k.gsWallClear
+                then function(V, p)
+                  return k.gsWallClear(U, Vector3.new(V, U.Y, p))
+                end
+                else nil
+              local V, p = k.vbPlanKeep(
+                H.vbOutKeyPerZone == true and "out " .. L.name or "out",
+                b,
+                q,
+                r,
+                F,
+                s,
+                function(b, F)
+                  local t = math.sqrt((b - q) ^ 2 + (F - r) ^ 2) / I
+                    + (H.vbMidW or 1) * k.vbMidOver(b, F) / I
+                    + (H.vbOutBossW or 0.5) * C(b, F) / I
+                  return if l(L, b, F, e) then t + (H.vbOutStayW or 60) else t
+                end,
+                O
+              )
+              if V then
+                if if p then not p else H.vbOutPlanKeep ~= false then
+                  D.outGoal = { x = V[1], z = V[2], at = s, cur = L.name }
+                else
+                  D.outGoal = nil
+                end
+                local b, F, C =
+                  Vector3.new(V[1], U.Y, V[2]),
+                  L.name:sub(4),
+                  p and "least bad, hit in " .. string.format("%.1f", p - s) .. "s" or "clean"
+                return b, ("VOIDSBANE: out of the %s, planned way (%s)"):format(F, C)
+              end
+            end
+            if not Q then
+              local b, F = math.huge
+              for C = 0, 23, 1 do
+                Y = C * 3.141592653589793 / 12
+                local O, V = math.cos(Y), math.sin(Y)
+                for p, t in ipairs(n) do
+                  p, C = q + O * t, r + V * t
+                  if not (l(L, p, C, e)) then
+                    local e = 0
+                    for q, q in ipairs(P) do
+                      e = if q.from <= s + t / I + 0.6
+                        then if l(q, p, C, 0) then e + 1 else e
+                        else e
+                    end
+                    local l = e * 100 + t
+                    if l < b then
+                      local e, P = Vector3.new(p, U.Y, C), k.gsWallClear
+                      if if P then k.gsWallClear(U, e) else not P then
+                        b, F = l, e
+                      else
+                      end
+                    else
+                    end
+                    break
+                  end
+                end
+              end
+              if not F then
+                return nil
+              end
+              local l, U = L.name:sub(4), table.pack(math.floor(b / 100))
+              return F,
+                ("VOIDSBANE: out of the %s, least-bad way (%d other zones)"):format(l, U[1])
+            end
+            n = D.outPick
+            if n then
+              D.outGoal = { x = n.x, z = n.z, at = s, cur = L.name, hx = n.hx, hz = n.hz }
+            end
+            n, D, Y = L.name:sub(4), d % 1000, table.pack(math.max(0, L.from - s))
+            return Q, ("VOIDSBANE: out of the %s (%.0f studs, live in %.2fs)"):format(n, D, Y[1])
+          end
+          do
+            local f = math.sqrt
+            local l = math.abs
+            local U = math.floor
+            local s = math.ceil
+            local D = math.min
+            local e = math.max
+            local P = math.cos
+            local n = math.sin
+            local q, r, L =
+              math.atan2,
+              3.141592653589793,
+              {
+                "yellow bar",
+                "fireball",
+                "fire pool",
+                "throw",
+                "meteor",
+                "red line",
+                "meteor child",
+                "orb",
+                "ring",
+                "lance plant",
+                "beam drop",
+                "next fireball",
+                "wall",
+                "rune",
+                "next throw",
+                "trap",
+                "laser blast",
+                "spinning X",
+              }
+            local function b()
+              local I = K.vbBrain
+              if I then
+              else
+                I = {
+                  rects = {},
+                  circs = {},
+                  orbs = {},
+                  rings = {},
+                  xs = {},
+                  shot = {},
+                  tgt = {},
+                  launch = {},
+                  linesSeen = 0,
+                  track = {},
+                  tick = 0,
+                  T = {},
+                  D = {},
+                  XS = {},
+                  ZS = {},
+                }
+                K.vbBrain = I
+              end
+              return I
+            end
+            local function I()
+              return a:GetServerTimeNow()
+            end
+            local function d(Y)
+              local F = f(Y.X * Y.X + Y.Z * Y.Z)
+              if F < 1.0E-6 then
+                return 1, 0
+              end
+              return Y.X / F, Y.Z / F
+            end
+            local function Y(F)
+              local C = (typeof(F) == "Instance" or type(F) == "table") and F.Name or nil
+              if C == nil then
+                return nil
+              end
+              return C == J.Name
+            end
+            function k.vbBrainEvent(F, C, Q, O, V)
+              V, O = b(), I()
+              local p, t = V.rects, V.circs
+              if
+                F == "Bars"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and type(C.bars) == "table"
+                and tonumber(C.t0)
+              then
+                local W = C.cfg
+                local G, h, B, S, Z, u, c =
+                  W.warn or 1.5,
+                  W.step or 0.1,
+                  W.blinkAt or 2.5,
+                  W.blink or 1.9,
+                  W.live or 6,
+                  (W.length or 300) / 2,
+                  (W.hitHalf or 4) + 1.2
+                for W, y in pairs(C.bars) do
+                  if type(y) == "table" then
+                    if typeof(y.c) == "Vector3" then
+                      if typeof(y.d) == "Vector3" then
+                        local E, m, R = C.t0 + G + h * ((tonumber(W) or 1) - 1), d(y.d)
+                        p[#p + 1] = {
+                          cx = y.c.X,
+                          cz = y.c.Z,
+                          dx = m,
+                          dz = R,
+                          a0 = -u,
+                          a1 = u,
+                          hw = c,
+                          w1a = E,
+                          w1b = E + B + 0.1,
+                          w2a = E + B + S - 0.05,
+                          w2b = E + Z + 0.1,
+                          tEnd = math.huge,
+                          kind = 1,
+                          live = E,
+                        }
+                      end
+                    end
+                  end
+                end
+              elseif F == "BarsClear" then
+                for W, W in ipairs(p) do
+                  if W.kind == 1 then
+                    if W.tEnd > O then
+                      W.tEnd = O
+                    end
+                  end
+                end
+              elseif F == "Mark" and Q == "fireball" then
+                if Y(C) ~= false then
+                  V.fbMark = O
+                end
+              elseif F == "Breath" and type(C) == "table" and tonumber(C.t0) then
+                V.breath = C
+                V.shot = {}
+                V.tgt = {}
+                V.launch = {}
+                V.throwLocked = false
+                for O, W in pairs(type(C.launches) == "table" and C.launches or {}) do
+                  if tonumber(O) then
+                    if tonumber(W) then
+                      V.launch[tonumber(O)] = tonumber(W)
+                    end
+                  end
+                end
+              elseif F == "BreathTarget" and tonumber(C) then
+                V.tgt[tonumber(C)] = Y(Q)
+              elseif F == "BreathShot" and tonumber(C) and typeof(Q) == "Vector3" and V.breath then
+                local Y = tonumber(C)
+                local O = V.launch[Y]
+                if O then
+                  V.shot[Y] = true
+                  local Y = V.breath.t0
+                    + O
+                    + (type(V.breath.timing) == "table" and V.breath.timing.breathFlight or 1.1)
+                  t[#t + 1] =
+                    { cx = Q.X, cz = Q.Z, r = 21.5, ta = Y + 0.45, tb = Y + 0.8, kind = 2 }
+                  t[#t + 1] = { cx = Q.X, cz = Q.Z, r = H.vbBrainPoolR or 18.5, ta = Y + 1, tb = Y
+                    + 8.55, kind = 3 }
+                end
+              elseif
+                F == "ThrowLock"
+                and typeof(C) == "Vector3"
+                and V.breath
+                and type(V.breath.path) == "table"
+              then
+                local Y, Q =
+                  type(V.breath.path.throwT) == "table" and V.breath.path.throwT or {},
+                  V.breath.t0 + (V.breath.path.stopTime or 8)
+                V.throwLocked = true
+                t[#t + 1] = {
+                  cx = C.X,
+                  cz = C.Z,
+                  r = (Y.innerHit or 30.64) + 1,
+                  ta = Q + (Y.strike or 5.6) - 0.1,
+                  tb = Q + (Y.strike or 5.6) + 0.45,
+                  kind = 4,
+                }
+                t[#t + 1] = {
+                  cx = C.X,
+                  cz = C.Z,
+                  r = (Y.outerHit or 57.71) + 1,
+                  ta = Q + (Y.slam or 7.6) - 0.1,
+                  tb = Q + (Y.slam or 7.6) + 0.45,
+                  kind = 4,
+                }
+              elseif F == "Meteor" and type(C) == "table" and tonumber(C.t0) then
+                V.meteor = C
+                V.bossPt = nil
+                V.linesSeen = 0
+              elseif
+                F == "MeteorLock"
+                and type(C) == "table"
+                and typeof(C.point) == "Vector3"
+                and tonumber(C.impactAt)
+              then
+                local Y = (
+                  V.meteor and type(V.meteor.cfg) == "table" and tonumber(V.meteor.cfg.outerHit)
+                  or 40.5
+                ) + 1
+                t[#t + 1] =
+                  { cx = C.point.X, cz = C.point.Z, r = Y, ta = C.impactAt - 0.15, tb = C.impactAt
+                    + 0.45, kind = 5 }
+                if C.boss == true then
+                  V.bossPt = { C.point.X, C.point.Z }
+                end
+              elseif
+                F == "MeteorLine"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and typeof(C.from) == "Vector3"
+                and typeof(C.dir) == "Vector3"
+                and tonumber(C.t0)
+              then
+                V.linesSeen = (V.linesSeen or 0) + 1
+                local Y, Q, O = C.cfg, d(C.dir)
+                local W = Y.warn or 2.6
+                p[#p + 1] = {
+                  cx = C.from.X,
+                  cz = C.from.Z,
+                  dx = Q,
+                  dz = O,
+                  a0 = -8,
+                  a1 = Y.length or 584,
+                  hw = (Y.width or 64) / 2 + 1,
+                  w1a = C.t0 + W,
+                  w1b = C.t0 + W + (Y.live or 2.1) + 0.15,
+                  tEnd = math.huge,
+                  kind = 6,
+                }
+              elseif
+                F == "MeteorChildren"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and typeof(C.from) == "Vector3"
+                and typeof(C.dir) == "Vector3"
+                and tonumber(C.t0)
+              then
+                local Y, Q, O = C.cfg, d(C.dir)
+                local W, G, h, B = -O, Y.spacing or 30, Y.length or 292, Y.width or 18
+                for S = 1, Y.count or 18, 1 do
+                  local Z = type(C.yaws) == "table" and tonumber(C.yaws[S] or C.yaws[tostring(S)])
+                    or 0
+                  local u, c, y =
+                    W * P(Z) + Q * n(Z),
+                    -W * n(Z) + Q * P(Z),
+                    C.t0 + (S - 1) * (Y.stagger or 0.1) + (Y.warn or 1.55)
+                  p[#p + 1] = {
+                    cx = C.from.X + Q * S * G,
+                    cz = C.from.Z + O * S * G,
+                    dx = u,
+                    dz = c,
+                    a0 = -h / 2,
+                    a1 = h / 2,
+                    hw = B / 2 + (H.vbBrainChildBody or 0),
+                    w1a = y - 0.05,
+                    w1b = y + (Y.live or 0.15) + 0.3,
+                    tEnd = math.huge,
+                    kind = 7,
+                  }
+                end
+              elseif
+                F == "MeteorOrbs"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and typeof(C.center) == "Vector3"
+                and type(C.dirs) == "table"
+                and tonumber(C.t0)
+              then
+                local Y = C.cfg
+                for Q, Q in pairs(C.dirs) do
+                  if typeof(Q) == "Vector3" then
+                    local O, p = d(Q)
+                    V.orbs[#V.orbs + 1] = {
+                      cx = C.center.X,
+                      cz = C.center.Z,
+                      dx = O,
+                      dz = p,
+                      sp = Y.speed or 34,
+                      r = (Y.hit or 12) + 1,
+                      t0 = C.t0,
+                      life = Y.life or 9,
+                    }
+                  end
+                end
+              elseif
+                F == "XSpin"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and typeof(C.forward) == "Vector3"
+                and typeof(C.point) == "Vector3"
+                and tonumber(C.t0)
+              then
+                local Y, Q = d(C.forward)
+                V.xs = V.xs or {}
+                V.xs[#V.xs + 1] = {
+                  t0 = C.t0,
+                  dir = tonumber(C.dir) or 1,
+                  start = tonumber(C.start) or 0,
+                  fx = Y,
+                  fz = Q,
+                  px = C.point.X,
+                  pz = C.point.Z,
+                  py = C.point.Y,
+                  cf = C.cfg,
+                }
+              elseif
+                F == "Beams"
+                and type(C) == "table"
+                and type(C.cfg) == "table"
+                and type(C.beams) == "table"
+              then
+                local d = C.cfg
+                for Y, Q in pairs(C.beams) do
+                  if type(Q) == "table" then
+                    if typeof(Q.center) == "Vector3" then
+                      if tonumber(Q.startAt) then
+                        if tonumber(d.closeStart) then
+                          if tonumber(d.closeTime) then
+                            Y = d.closeStart + d.closeTime
+                            local O, p =
+                              Y - ((d.greenLead or 0.5) - (d.greenLate or 0.2)),
+                              Y + (d.greenTime or 3.4) + (d.convergeTime or 1.2) + 0.2
+                            t[#t + 1] = {
+                              cx = Q.center.X,
+                              cz = Q.center.Z,
+                              r = (d.blastRadius or 65) + 3,
+                              ta = Q.startAt + O + 0.3,
+                              tb = Q.startAt + p + 0.5,
+                              kind = 17,
+                            }
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              elseif
+                F == "Lance"
+                and type(C) == "table"
+                and typeof(C.origin) == "Vector3"
+                and tonumber(C.t0)
+                and type(C.rings) == "table"
+              then
+                local d = type(C.timing) == "table" and C.timing or {}
+                local Y, F = d.ringLife or 3.33, d.doorHalfWidth or 9
+                for Q, O in pairs(C.rings) do
+                  if type(O) == "table" then
+                    Q = {}
+                    for p, p in pairs(type(O.doors) == "table" and O.doors or {}) do
+                      if tonumber(p) then
+                        Q[#Q + 1] = tonumber(p)
+                      end
+                    end
+                    V.rings[#V.rings + 1] = {
+                      ox = C.origin.X,
+                      oz = C.origin.Z,
+                      t0 = C.t0 + (O.launch or 0),
+                      life = O.life or Y,
+                      slow = O.slow,
+                      steady = O.steady or 0,
+                      life0 = Y,
+                      doors = Q,
+                      dhw = F,
+                      rr = {},
+                    }
+                  end
+                end
+                F = C.t0 + (d.plantImpact or 1.5)
+                t[#t + 1] = {
+                  cx = C.origin.X,
+                  cz = C.origin.Z,
+                  r = (d.markerRadius or 10) + 1,
+                  ta = F - 0.1,
+                  tb = F + 0.5,
+                  kind = 10,
+                }
+                Y = 0
+                for d, d in pairs(C.rings) do
+                  Y = if type(d) == "table"
+                    then if (tonumber(d.launch) or 0) > Y then tonumber(d.launch) else Y
+                    else Y
+                end
+                t[#t + 1] = {
+                  cx = C.origin.X,
+                  cz = C.origin.Z,
+                  r = H.vbBrainLanceR or 13,
+                  ta = F + 0.5,
+                  tb = C.t0 + Y + 0.8,
+                  kind = 10,
+                }
+              end
+            end
+            function k.vbBrainDrop(d, Y)
+              local F, C = b(), I()
+              F.circs[#F.circs + 1] = {
+                cx = d,
+                cz = Y,
+                r = H.vbBrainDropR or 18.5,
+                ta = C + 1.5,
+                tb = C + 2.3,
+                kind = 11,
+              }
+            end
+            do
+              local d = k.vbEvent
+              function k.vbEvent(Y, F, C, Q, O)
+                if H.vbBrain ~= false then
+                  local V, p = pcall(k.vbBrainEvent, Y, F, C, Q, O)
+                  if not V then
+                    N.vbBrainErr = tostring(p)
+                  end
+                end
+                return d(Y, F, C, Q, O)
+              end
+            end
+            local function d(Y, F, C)
+              Y.seg = nil
+              if H.vbBrainBuffSpeed == false then
+                return
+              elseif k.buffState then
+                if k.speedNormal then
+                  if not k.speedBurst then
+                    return
+                  end
+                else
+                  return
+                end
+              else
+                return
+              end
+              local Q, O = k.speedNormal(), k.speedBurst()
+              local V = l(C - O) < 0.6
+              if V then
+              elseif l(C - Q) < 0.6 then
+              else
+                return
+              end
+              local p, t, W, W = pcall(k.buffState, os.clock())
+              if p then
+                if type(t) ~= "string" then
+                  return
+                end
+              else
+                return
+              end
+              W = tonumber(W) or 0
+              p, C = H.vbBrainGap or 1.3, H.vbBrainOn or 5.5
+              if t == "up" then
+                if V then
+                  Y.seg = { { F + W, O }, { F + W + p, Q }, { math.huge, O } }
+                else
+                  Y.seg =
+                    { { F + 0.2, Q }, { F + math.max(W, 0.2), O }, { F + math.max(W, 0.2) + p, Q }, {
+                      math.huge,
+                      O,
+                    } }
+                end
+              elseif t == "gap" or t == "ready" then
+                if V then
+                  Y.seg = { { math.huge, O } }
+                else
+                  local V = (t == "gap" and W or 0) + 0.2
+                  Y.seg = { { F + V, Q }, { F + V + C, O }, { math.huge, Q } }
+                end
+              end
+            end
+            local function Y(F, C, Q)
+              local O = F.seg
+              if O then
+                for V = 1, #O, 1 do
+                  if C < O[V][1] then
+                    return O[V][2]
+                  end
+                end
+                return O[#O][2]
+              end
+              local O, V = F.hi, F.lo
+              if (if O then not V else not O) or O - V < 1.5 then
+                return D(Q, k.speedNormal and k.speedNormal() or Q)
+              end
+              local p, t = H.vbBrainOn or 5.5, H.vbBrainOff or 1.3
+              if Q >= O - 0.5 then
+                if not F.riseAt then
+                  return V
+                end
+                return (C - F.riseAt) % (p + t) < p and O or V
+              end
+              if not F.fallAt then
+                return V
+              end
+              return (C - F.fallAt) % (p + t) < t and V or O
+            end
+            local function F(C, Q, O)
+              local V = C.track
+              for C = #V, 1, -1 do
+                if V[C][1] <= Q then
+                  return V[C][2], V[C][3]
+                end
+              end
+              return O.X, O.Z
+            end
+            local function C(Q, O, V, p)
+              local t, W, G = os.clock(), H.vbBrainH or 5, H.vbBrainDt or 0.1
+              local h = U(W / G + 0.5)
+              local B = H.vbBrainPad or 0.6
+              local S = H.vbBrainTPad or 0.06
+              local Z = H.vbBrainWide or 2.5
+              local u = H.vbBrainTWide or 0.2
+              local c, y, E = H.vbBrainLag or 0.05, H.vbBrainSpK or 1, O.X
+              local m, R, _, T = O.Z
+              if c > 0 then
+                W = Q.cur
+                if W then
+                  local fL, kL = W[1] - E, W[2] - m
+                  local HL = f(fL * fL + kL * kL)
+                  if HL > 1.0E-6 then
+                    local NL = D(HL, p * c)
+                    E += fL / HL * NL
+                    m += kL / HL * NL
+                  else
+                  end
+                else
+                end
+                local fL = V + c
+                R, _, T = E, m, fL
+              else
+                R, _, T = E, m, V
+              end
+              W = K.vb
+              local E = W.glyph.X
+              local m, fL = W.glyph.Z, { "rects", "circs", "orbs", "rings" }
+              for kL, HL in ipairs(fL) do
+                c = Q[HL]
+                for NL = #c, 1, -1 do
+                  kL = c[NL]
+                  if
+                    if HL == "rects"
+                      then D(kL.tEnd, kL.w2b or kL.w1b) < V - 0.5
+                      else if HL == "circs" then kL.tb < V - 0.5 else kL.t0 + kL.life < V - 0.5
+                  then
+                    table.remove(c, NL)
+                  end
+                end
+              end
+              d(Q, V, p)
+              local d = Q.T
+              local kL = Q.D
+              kL[0] = 0
+              c = math.huge
+              for HL = 1, h, 1 do
+                d[HL] = T + G * HL
+                fL = Y(Q, T + (HL - 0.5) * G, p) * y
+                c = if fL < c then fL else c
+                kL[HL] = kL[HL - 1] + fL * G
+              end
+              local Y, HL, NL = d[h], {}, {}
+              local function lL(xL, vL)
+                local AL, aL = s((xL - T) / G - 1.0E-9), U((vL - T) / G + 1.0E-9)
+                return if AL < 1 then 1 else AL, if aL > h then h else aL
+              end
+              local function s(xL, vL, AL, aL)
+                local iL, jL = lL(AL - S, aL + S)
+                local JL, XL = lL(AL - u, aL + u)
+                if JL > XL then
+                  return
+                end
+                AL = { z = xL, rect = vL, kT0 = iL, kT1 = jL }
+                for u = JL, XL, 1 do
+                  xL = HL[u]
+                  if xL then
+                  else
+                    xL = {}
+                    HL[u] = xL
+                  end
+                  xL[#xL + 1] = AL
+                end
+                XL = NL[JL]
+                if XL then
+                else
+                  XL = {}
+                  NL[JL] = XL
+                end
+                XL[#XL + 1] = AL
+                if iL <= jL then
+                  if iL ~= JL then
+                    XL = NL[iL]
+                    if XL then
+                    else
+                      XL = {}
+                      NL[iL] = XL
+                    end
+                    XL[#XL + 1] = AL
+                  end
+                end
+              end
+              for u, u in ipairs(Q.rects) do
+                s(u, true, u.w1a, D(u.w1b, u.tEnd))
+                if u.w2a then
+                  s(u, true, u.w2a, D(u.w2b, u.tEnd))
+                end
+              end
+              for u, u in ipairs(Q.circs) do
+                s(u, false, u.ta, u.tb)
+              end
+              local u, xL = {}, {}
+              for vL, AL in ipairs(Q.orbs) do
+                p, s = lL(AL.t0, AL.t0 + AL.life)
+                if p <= s then
+                  AL.k0 = p
+                  AL.k1 = s
+                  fL, y = AL.ox or {}, AL.oz or {}
+                  AL.ox = fL
+                  AL.oz = y
+                  for aL = p, s, 1 do
+                    vL = (d[aL] - AL.t0) * AL.sp
+                    fL[aL], y[aL] = AL.cx + AL.dx * vL, AL.cz + AL.dz * vL
+                  end
+                  u[#u + 1] = AL
+                end
+              end
+              for vL, vL in ipairs(Q.rings) do
+                y, s = lL(vL.t0 + 1.0E-6, vL.t0 + vL.life)
+                if y <= s then
+                  vL.k0 = y
+                  vL.k1 = s
+                  for AL = y, s, 1 do
+                    vL.rr[AL] = v(d[AL] - vL.t0, vL.slow, vL.steady, vL.life0)
+                  end
+                  xL[#xL + 1] = vL
+                end
+              end
+              local v, vL = {}, 0
+              s = Q.xs or {}
+              for AL = #s, 1, -1 do
+                if s[AL].t0 + (s[AL].cf.flight or 14.56) + 0.5 < V then
+                  table.remove(s, AL)
+                end
+              end
+              fL = O.Y
+              for AL, aL in ipairs(s) do
+                y = aL.cf
+                AL, p = lL(aL.t0, aL.t0 + (y.flight or 14.56))
+                if AL <= p then
+                  local iL, jL, JL, XL, wL, UL, sL, DL, eL =
+                    y.hit or 24,
+                    (y.spacing or 50) / 1.41421356,
+                    -aL.fz,
+                    aL.fx,
+                    y.turnRate or 0.43,
+                    y.back or 207,
+                    y.speed or 25,
+                    y.lift or 150,
+                    y.arm or 4
+                  for PL = AL, p, 1 do
+                    local AL = d[PL] - aL.t0
+                    local nL = aL.start + aL.dir * wL * AL
+                    local wL, qL, oL = P(nL), n(nL), -UL + sL * AL
+                    nL, AL = aL.px + aL.fx * oL, aL.pz + aL.fz * oL
+                    for UL = 0, eL, 1 do
+                      oL = UL == 0 and 1 or 4
+                      for sL = 1, oL, 1 do
+                        local eL, oL = 0, 0
+                        if UL > 0 then
+                          eL, oL =
+                            ((sL == 1 or sL == 3) and 1 or -1) * jL * UL,
+                            (sL <= 2 and 1 or -1) * jL * UL
+                        else
+                        end
+                        local jL, UL = eL * wL - oL * qL, eL * qL + oL * wL
+                        sL = aL.py + DL + UL - fL
+                        if l(sL) < iL then
+                          UL = v[PL]
+                          if UL then
+                          else
+                            UL = {}
+                            v[PL] = UL
+                          end
+                          UL[#UL + 1] =
+                            { nL + JL * jL, AL + XL * jL, f(iL * iL - sL * sL), aL.fx, aL.fz }
+                          vL += 1
+                        else
+                        end
+                      end
+                    end
+                  end
+                else
+                end
+              end
+              local AL = -(H.vbBrainXsBack or 8)
+              local aL = H.vbBrainXsAhead or 8
+              local iL = #u
+              local jL = #xL
+              local JL = (13 + B) ^ 2
+              local XL, wL, UL = (13 + Z) ^ 2
+              if iL > 0 then
+                JL = (u[1].r + B) ^ 2
+                XL = (u[1].r + Z) ^ 2
+                wL, UL = JL, XL
+              else
+                wL, UL = JL, XL
+              end
+              local JL, XL = {}, {}
+              local function sL(DL)
+                if DL <= T then
+                  local eL, PL
+                  if DL < V then
+                    eL, PL = F(Q, DL, O)
+                  else
+                    eL, PL = O.X, O.Z
+                  end
+                  return 0, eL, PL
+                end
+                local F = U((DL - T) / G + 0.5)
+                return if F < 1 then 1 else if F > h then h else F, 0, 0
+              end
+              local function F(O, DL, eL, PL, nL, qL, oL, rL)
+                local KL, LL = lL(PL, nL)
+                if KL <= LL then
+                  JL[#JL + 1] =
+                    { ka = O, cx = DL, cz = eL, k0 = KL, k1 = LL, r = qL, kind = oL, w = rL }
+                end
+              end
+              y, s, p = H.vbBrainAimH or 1.6, false, Q.breath
+              if p and tonumber(p.t0) and V < p.t0 + 12 then
+                fL = type(p.timing) == "table" and p.timing.breathFlight or 1.1
+                for O, DL in pairs(Q.launch) do
+                  if Q.shot[O] then
+                  else
+                    if Q.tgt[O] ~= false then
+                      if p.t0 + DL + 0.5 > V then
+                        local O, eL = p.t0 + DL - 0.13, p.t0 + DL + fL
+                        if O <= Y then
+                          if O <= T + y then
+                            local DL, PL, nL = sL(O)
+                            XL[#XL + 1] = { DL, PL, nL }
+                            F(DL, PL, nL, eL + 0.45 - S, eL + 0.8 + S, 21.5, 12, true)
+                            F(
+                              DL,
+                              PL,
+                              nL,
+                              eL + 1 - S,
+                              eL + 8.55 + S,
+                              H.vbBrainPoolR or 18.5,
+                              12,
+                              true
+                            )
+                          end
+                        end
+                        s = true
+                      else
+                      end
+                    else
+                    end
+                  end
+                end
+              else
+                if Q.fbMark then
+                  if V - Q.fbMark < 3 then
+                    local O = { 1.9, 3, 4.1, 5.2, 6.3, 7.4 }
+                    for DL, DL in ipairs(O) do
+                      local O, eL = Q.fbMark + 2 + DL - 0.13, Q.fbMark + 2 + DL + 1.1
+                      if O <= Y then
+                        if O <= T + y then
+                          local DL, PL, nL = sL(O)
+                          XL[#XL + 1] = { DL, PL, nL }
+                          F(DL, PL, nL, eL + 0.45 - S, eL + 0.8 + S, 21.5, 12, true)
+                          F(DL, PL, nL, eL + 1 - S, eL + 8.55 + S, H.vbBrainPoolR or 18.5, 12, true)
+                        end
+                      end
+                    end
+                    s = true
+                  else
+                  end
+                else
+                end
+              end
+              if p then
+                if tonumber(p.t0) then
+                  if not Q.throwLocked then
+                    if type(p.path) == "table" then
+                      if type(p.path.throwT) == "table" then
+                        y, fL = p.path.throwT, p.t0 + (p.path.stopTime or 8)
+                        local O = fL + 1.67 - 0.3
+                        if V < fL + (y.slam or 7.6) then
+                          if O <= Y then
+                            local DL, eL, PL = sL(O)
+                            F(
+                              DL,
+                              eL,
+                              PL,
+                              fL + (y.strike or 5.6) - 0.15,
+                              fL + (y.strike or 5.6) + 0.5,
+                              (y.innerHit or 30.64) + 1,
+                              15,
+                              false
+                            )
+                            F(
+                              DL,
+                              eL,
+                              PL,
+                              fL + (y.slam or 7.6) - 0.15,
+                              fL + (y.slam or 7.6) + 0.5,
+                              (y.outerHit or 57.71) + 1,
+                              15,
+                              false
+                            )
+                          end
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+              F = Q.meteor
+              if F then
+                if tonumber(F.t0) then
+                  if H.vbBrainLine ~= false then
+                    y = W.bossHome
+                    fL, p =
+                      typeof(y) == "Vector3" and y.X or 1379.93,
+                      typeof(y) == "Vector3" and y.Z or -933.19
+                    local function O(DL, eL, PL)
+                      if DL > Y then
+                        return
+                      elseif V > DL + 0.6 then
+                        return
+                      end
+                      local nL, qL, oL = sL(DL)
+                      local sL, rL = lL(DL + 2.6 - S, DL + 4.85 + S)
+                      if sL <= rL then
+                        JL[#JL + 1] =
+                          { ka = nL, cx = qL, cz = oL, k0 = sL, k1 = rL, line = true, fx = eL, fz = PL }
+                      end
+                    end
+                    if (Q.linesSeen or 0) == 0 then
+                      if Q.bossPt then
+                        O(F.t0 + 7.92, Q.bossPt[1], Q.bossPt[2])
+                      end
+                    end
+                    local S = Q.linesSeen
+                    if S then
+                      if S <= 1 then
+                        O(F.t0 + 35.5, fL, p)
+                      end
+                    else
+                      O(F.t0 + 35.5, fL, p)
+                    end
+                  end
+                end
+              end
+              local O, S, lL = #JL, 45, 45
+              local sL, DL, eL = W.rune
+              if sL then
+                lL = sL.max or 45
+                S = math.clamp((sL.value or lL) + (sL.rate or 0) * (V - (sL.at or V)), 0, lL)
+                DL, eL = S, lL
+              else
+                DL, eL = S, lL
+              end
+              local S, lL = -math.huge
+              if N.gsInvEnd and K.charAt and os.clock() - K.charAt < (H.vbBrainInvFor or 8) then
+                S = V + (N.gsInvEnd - os.clock()) - (H.vbBrainInvLead or 1.5)
+                lL = S
+              else
+                lL = S
+              end
+              local S = Q.XS
+              local PL = Q.ZS
+              local nL = k.vbEdge
+              local qL = h + 1
+              local function oL(rL, KL, LL, bL, IL, zL)
+                local dL, YL = KL - R, LL - _
+                local FL, CL, QL = f(dL * dL + YL * YL), bL - KL, IL - LL
+                local OL, gL, VL, pL, tL = f(CL * CL + QL * QL), 0, 0, 0, 0
+                if FL > 1.0E-9 then
+                  gL, VL = dL / FL, YL / FL
+                else
+                end
+                if OL > 1.0E-9 then
+                  pL, tL = CL / OL, QL / OL
+                else
+                end
+                dL = rL / G
+                IL = U(dL)
+                local ML, WL, GL, hL, BL, SL, ZL, uL =
+                  if IL >= h then kL[h] * zL else (kL[IL] + (kL[IL + 1] - kL[IL]) * (dL - IL)) * zL,
+                  R,
+                  _,
+                  false,
+                  DL,
+                  qL,
+                  0,
+                  0
+                for DL = 1, h, 1 do
+                  YL = kL[DL] * zL - ML
+                  YL = if YL < 0 then 0 else YL
+                  dL, CL = nil
+                  if YL <= FL then
+                    dL, CL = R + gL * YL, _ + VL * YL
+                  else
+                    QL = YL - FL
+                    QL = if QL > OL then OL else QL
+                    dL, CL = KL + pL * QL, LL + tL * QL
+                  end
+                  S[DL] = dL
+                  PL[DL] = CL
+                  bL, rL, IL = 0, false
+                  if dL ~= WL or CL ~= GL then
+                    IL = HL[DL]
+                    local HL = nL(dL, CL)
+                    if HL < 1.5 then
+                      bL = 13
+                    else
+                      rL = if HL < 4 then true else rL
+                    end
+                  else
+                    rL, IL = hL, NL[DL]
+                  end
+                  if bL == 0 then
+                    if IL then
+                      local HL, NL = bL, rL
+                      for KL = 1, #IL, 1 do
+                        local LL = IL[KL]
+                        KL = LL.z
+                        local IL, zL, YL = dL - KL.cx, CL - KL.cz
+                        if LL.rect then
+                          local QL = IL * KL.dx + zL * KL.dz
+                          YL = l(IL * KL.dz - zL * KL.dx) - KL.hw
+                          local gL = KL.a0 - QL
+                          YL, gL = if gL > YL then gL else YL, QL - KL.a1
+                          YL = if gL > YL then gL else YL
+                        else
+                          local QL, gL = IL * IL + zL * zL, KL.r + Z
+                          if QL > gL * gL then
+                            YL = Z + 1
+                          else
+                            local IL = KL.r + B
+                            YL = QL <= IL * IL and B or Z
+                          end
+                        end
+                        if YL <= Z then
+                          if YL <= B and DL >= LL.kT0 and DL <= LL.kT1 then
+                            HL = KL.kind
+                            break
+                          end
+                          NL = true
+                        else
+                        end
+                      end
+                      bL, rL = HL, NL
+                    else
+                    end
+                  else
+                  end
+                  if bL == 0 then
+                    if iL > 0 then
+                      local HL, NL = bL, rL
+                      for KL = 1, iL, 1 do
+                        local iL = u[KL]
+                        if DL >= iL.k0 then
+                          if DL <= iL.k1 then
+                            local u, LL = dL - iL.ox[DL], CL - iL.oz[DL]
+                            KL = u * u + LL * LL
+                            if KL <= UL then
+                              if KL <= wL then
+                                LL = 8
+                                HL = LL
+                                break
+                              end
+                              NL = true
+                            else
+                            end
+                          else
+                          end
+                        else
+                        end
+                      end
+                      bL, rL = HL, NL
+                    else
+                    end
+                  else
+                  end
+                  if bL == 0 then
+                    if jL > 0 then
+                      local u, HL = bL, rL
+                      for NL = 1, jL, 1 do
+                        local iL = xL[NL]
+                        if DL >= iL.k0 then
+                          if DL <= iL.k1 then
+                            NL = iL.rr[DL]
+                            if NL > iL.dhw then
+                              local xL, jL = dL - iL.ox, CL - iL.oz
+                              local wL = f(xL * xL + jL * jL)
+                              local UL = l(NL - wL) - 3
+                              if UL <= Z then
+                                local NL, KL, LL = q(jL, xL), iL.doors, 9
+                                for xL = 1, #KL, 1 do
+                                  local jL = l((NL - KL[xL] + r) % (2 * r) - r)
+                                  LL = if jL < LL then jL else LL
+                                end
+                                NL = LL < r / 2 and wL * n(LL) or 1000000000
+                                if UL <= B and NL > iL.dhw - B then
+                                  KL = 9
+                                  u = KL
+                                  break
+                                else
+                                  HL = if NL > iL.dhw - Z then true else HL
+                                end
+                              else
+                              end
+                            else
+                            end
+                          else
+                          end
+                        else
+                        end
+                      end
+                      bL, rL = u, HL
+                    else
+                    end
+                  else
+                  end
+                  if bL == 0 then
+                    if vL > 0 then
+                      local u = v[DL]
+                      if u then
+                        local v, HL = bL, rL
+                        for NL = 1, #u, 1 do
+                          local xL = u[NL]
+                          local u, vL = dL - xL[1], CL - xL[2]
+                          NL = u * xL[4] + vL * xL[5]
+                          if NL >= AL then
+                            if NL <= aL then
+                              local NL = l(vL * xL[4] - u * xL[5])
+                              if NL <= xL[3] + B then
+                                local u = 18
+                                v = u
+                                break
+                              else
+                                HL = if NL <= xL[3] + Z then true else HL
+                              end
+                            else
+                            end
+                          else
+                          end
+                        end
+                        bL, rL = v, HL
+                      else
+                      end
+                    else
+                    end
+                  else
+                  end
+                  if bL == 0 then
+                    if O > 0 then
+                      local v, u = bL, rL
+                      for HL = 1, O, 1 do
+                        local O = JL[HL]
+                        if DL >= O.k0 then
+                          if DL <= O.k1 then
+                            if O.ka < DL then
+                              local NL, xL
+                              if O.ka > 0 then
+                                NL, xL = S[O.ka], PL[O.ka]
+                              else
+                                NL, xL = O.cx, O.cz
+                              end
+                              HL = nil
+                              if O.line then
+                                local vL, AL = NL - O.fx, xL - O.fz
+                                local aL = f(vL * vL + AL * AL)
+                                aL = if aL < 1.0E-6 then 1.0E-6 else aL
+                                vL /= aL
+                                AL /= aL
+                                local aL, iL = dL - O.fx, CL - O.fz
+                                if aL * vL + iL * AL >= -8 then
+                                  local jL = l(aL * AL - iL * vL)
+                                  if jL <= 33 + B then
+                                    HL = 6
+                                    v = HL
+                                    break
+                                  else
+                                    u = if jL <= 33 + Z then true else u
+                                  end
+                                else
+                                end
+                              else
+                                local vL, AL = dL - NL, CL - xL
+                                local NL = f(vL * vL + AL * AL) - O.r
+                                if NL <= B then
+                                  HL = O.kind
+                                  v = HL
+                                  break
+                                else
+                                  u = if O.w then if NL <= Z then true else u else u
+                                end
+                              end
+                            else
+                            end
+                          else
+                          end
+                        else
+                        end
+                      end
+                      bL, rL = v, u
+                    else
+                    end
+                  else
+                  end
+                  if bL == 0 then
+                    local v, O = dL - E, CL - m
+                    if v * v + O * O <= 529 then
+                      BL += 3 * G
+                      BL = if BL > eL then eL else BL
+                    else
+                      BL -= G
+                    end
+                    bL = if BL <= 0.5 then 14 else bL
+                  else
+                  end
+                  if bL ~= 0 then
+                    if d[DL] >= lL then
+                      SL, ZL = DL, bL
+                      break
+                    end
+                  end
+                  WL, GL, hL, uL = dL, CL, rL, if rL then uL + 1 else uL
+                end
+                return SL, ZL, uL, WL, GL, BL, FL + OL
+              end
+              p, fL = -math.huge, 0
+              for v, v in ipairs(Q.rects) do
+                if v.kind == 1 then
+                  if v.tEnd > T then
+                    if v.live > p then
+                      y, sL = v.live, q(v.dz, v.dx)
+                      p, fL = y, sL
+                    else
+                    end
+                  else
+                  end
+                else
+                end
+              end
+              local v = Q.cT or {}
+              local q = Q.cAx or {}
+              local d = Q.cAz or {}
+              local O = Q.cBx or {}
+              local Z = Q.cBz or {}
+              Q.cT = v
+              Q.cAx = q
+              Q.cAz = d
+              Q.cBx = O
+              Q.cBz = Z
+              local function u(T, HL, NL, lL, xL, vL)
+                T += 1
+                v[T] = HL
+                q[T] = NL
+                d[T] = lL
+                O[T] = xL
+                Z[T] = vL
+                return T
+              end
+              sL, y = u(0, 0, R, _, R, _), Q.plan
+              if y then
+                W = y.B or y.A
+                sL = u(sL, e(0, y.tgo - V), y.A[1], y.A[2], W[1], W[2])
+              else
+                sL = (u(sL, 0, R, _, R, _))
+              end
+              local T, HL, NL =
+                H.vbBrainDirs or 16,
+                H.vbBrainR or { 6, 12, 20, 32, 48, 70, 110 },
+                H.vbBrainTaus or { 0, 0.6, 1.4 }
+              for lL = 0, T - 1, 1 do
+                W, p = P(fL + lL * 2 * r / T), n(fL + lL * 2 * r / T)
+                for xL, vL in ipairs(HL) do
+                  xL, lL = R + W * vL, _ + p * vL
+                  if vL <= 48 then
+                    for vL, vL in ipairs(NL) do
+                      sL = (u(sL, vL, xL, lL, xL, lL))
+                    end
+                  else
+                    sL = (u(sL, 0, xL, lL, xL, lL))
+                  end
+                end
+              end
+              for lL = 0, T - 1, 1 do
+                p, HL = P(fL + lL * 2 * r / T), n(fL + lL * 2 * r / T)
+                for P, n in ipairs(H.vbBrainR1 or { 12, 28, 50 }) do
+                  W, lL = R + p * n, _ + HL * n
+                  for r = 1, -1, -2 do
+                    n, P = -HL * r, p * r
+                    for r, r in ipairs(H.vbBrainR2 or { 16, 40 }) do
+                      sL = u(sL, 0, W, lL, W + n * r, lL + P * r)
+                    end
+                  end
+                end
+              end
+              W, HL = E - R, m - _
+              if f(W * W + HL * HL) > 1 then
+                fL = { 1, 0.5 }
+                for P, P in ipairs(fL) do
+                  for n, n in ipairs(NL) do
+                    sL = u(sL, n, R + W * P, _ + HL * P, R + W * P, _ + HL * P)
+                  end
+                end
+              else
+              end
+              local P, n, r, lL, xL, vL, AL, aL, iL, jL, JL, wL, UL, DL, eL, rL, KL, LL, bL, IL, zL, dL, YL, FL, CL, QL =
+                H.vbBrainWTgt or 1,
+                H.vbBrainWLen or 0.15,
+                H.vbBrainWWide or 0.6,
+                H.vbBrainWSwitch or 0.5,
+                H.vbBrainHomeR or 14,
+                H.vbBrainFbHome or 32,
+                H.vbBrainWFbHome or 3,
+                H.vbBrainTerm or 4,
+                H.vbBrainRDelay or 0.15,
+                H.vbBrainRSlow or 0.9,
+                H.vbBrainOrbFar or 110,
+                H.vbBrainWOrbFar or 3,
+                H.vbBrainWTau or 0.4,
+                H.vbBrainWVolEdge or 1,
+                H.vbBrainVolEdge or 40,
+                H.vbBrainWVolRoom or 1.5,
+                H.vbBrainVolRoom or 45,
+                Q.cur == nil and (H.vbBrainStart or 0) or 0,
+                F and tonumber(F.t0) and Q.bossPt and V < F.t0 + 7.87 + 1.4,
+                -math.huge,
+                false,
+                H.vbBrainCorner2 ~= false,
+                {},
+                Q.circs,
+                (H.vbBrainCapMs or 30) / 1000,
+                sL - 2
+              F, HL, T, u, fL, NL, W =
+                if QL > 0 then if QL % 197 == 0 then 1 else 197 else 197, false, 0, 0, 0, 0, 0
+              local OL, gL, VL, pL = 1, 0, 0, 0
+              for tL = 1, sL, 1 do
+                p = if tL > 2 then 3 + (tL - 3) * F % QL else tL
+                if tL > 2 and tL % 16 == 0 and os.clock() - t > CL then
+                  HL = true
+                  break
+                end
+                local F, ML, WL, GL, hL = v[p], q[p], d[p], O[p], Z[p]
+                local BL, SL, ZL, uL, cL, yL, EL = oL(F + LL, ML, WL, GL, hL, 1)
+                T += 1
+                local mL, RL = 0, 0
+                if BL >= qL then
+                  for _L = 1, #XL, 1 do
+                    local TL, fW, kW = XL[_L]
+                    if TL[1] > 0 then
+                      fW, kW = S[TL[1]], PL[TL[1]]
+                    else
+                      fW, kW = TL[2], TL[3]
+                    end
+                    _L = f((fW - E) ^ 2 + (kW - m) ^ 2)
+                    mL = if _L < vL then mL + AL * (vL - _L) / vL else mL
+                  end
+                  tL = f((uL - E) ^ 2 + (cL - m) ^ 2)
+                  local XL = e(0, tL - 20) / 16 + 5 - yL
+                  mL = if XL > 0 then mL + 6 + XL * 2 else mL
+                  if bL then
+                    XL = f((uL - Q.bossPt[1]) ^ 2 + (cL - Q.bossPt[2]) ^ 2)
+                    mL = if XL < JL then mL + wL * (JL - XL) / 20 else mL
+                  else
+                  end
+                  XL = nL(uL, cL)
+                  mL = if XL < 12 then mL + (12 - XL) * 0.08 else mL
+                  if s then
+                    if DL > 0 then
+                      local s, wL = if XL < eL then mL + DL * (eL - XL) / 10 else mL, h - 6
+                      wL = if wL < 1 then 1 else wL
+                      local eL, _L = uL - S[wL], cL - PL[wL]
+                      local S = f(eL * eL + _L * _L)
+                      mL = if S > 1
+                        then if nL(uL + eL / S * KL, cL + _L / S * KL) < 3 then s + rL else s
+                        else s
+                    else
+                    end
+                  else
+                  end
+                  mL = mL + P * e(0, tL - xL) / 20 + n * D(EL, kL[h]) / 20 + r * ZL * G
+                  if aL > 0 then
+                    for s = 1, #FL, 1 do
+                      XL = FL[s]
+                      if XL.ta > Y and XL.ta <= Y + aL + 4 then
+                        s = XL.r + B - f((uL - XL.cx) ^ 2 + (cL - XL.cz) ^ 2)
+                        if s > 0 and s / c > XL.ta - Y - 0.3 then
+                          BL, SL = h + 0.5, 16
+                          break
+                        end
+                      end
+                    end
+                  else
+                  end
+                  if BL >= qL then
+                    u += 1
+                    mL = if p > 2 then mL + lL else mL
+                    YL[u] = { p, mL + UL * F }
+                  else
+                  end
+                else
+                end
+                if BL < qL then
+                  EL = kL[h] - F * c
+                  EL = if EL < 0 then 0 else EL
+                  yL, ZL = f((ML - R) ^ 2 + (WL - _) ^ 2), f((GL - ML) ^ 2 + (hL - WL) ^ 2)
+                  uL, cL = nil
+                  if EL <= yL then
+                    local s = yL > 1.0E-9 and EL / yL or 0
+                    uL, cL = R + (ML - R) * s, _ + (WL - _) * s
+                  else
+                    local s = ZL > 1.0E-9 and D(1, (EL - yL) / ZL) or 0
+                    uL, cL = ML + (GL - ML) * s, WL + (hL - WL) * s
+                  end
+                  mL, RL =
+                    P * e(0, f((uL - E) ^ 2 + (cL - m) ^ 2) - xL) / 20 + n * D(yL + ZL, kL[h]) / 20,
+                    D(yL + ZL, EL)
+                else
+                end
+                if p == 2 then
+                  fL, NL = BL, SL
+                else
+                end
+                if BL < qL then
+                  mL = (if p > 2 then mL + lL else mL) + UL * F
+                  ML = nil
+                  if dL then
+                    ML = if BL > 15 then 15 + U((BL - 15) / 5) * 5 else BL
+                    mL = if SL == 12 then if RL >= 30 then mL - 3 else mL else mL
+                  else
+                    ML = BL
+                  end
+                  W = if p == 2 then ML else W
+                  yL = ML * 1000 - mL
+                  if yL > IL then
+                    IL, OL, gL, VL, pL = yL, p, BL, SL, ML
+                  else
+                  end
+                else
+                end
+              end
+              if u > 0 then
+                table.sort(YL, function(U, s)
+                  return U[2] < s[2]
+                end)
+                QL, AL, n = -math.huge, H.vbBrainRobust ~= false
+                for U = 1, u, 1 do
+                  c = YL[U][1]
+                  xL, r = if AL then oL(v[c] + iL + LL, q[c], d[c], O[c], Z[c], jL) else qL, zL
+                  if xL >= qL then
+                    n, zL = c, true
+                    break
+                  end
+                  FL = xL * 1000 - YL[U][2]
+                  if FL > QL then
+                    n, QL = c, FL
+                  else
+                  end
+                  if U % 8 == 0 and os.clock() - t > CL * 1.5 then
+                    zL, HL = r, true
+                    break
+                  end
+                end
+                OL, gL, VL = n, qL, 0
+              else
+              end
+              if dL then
+                if gL < qL and fL < qL and y ~= nil and not y.hold then
+                  if W >= pL then
+                    if OL ~= 2 then
+                      JL = 2
+                      OL, gL, VL = JL, fL, NL
+                    else
+                    end
+                  else
+                  end
+                else
+                end
+              else
+                if gL < qL and fL < qL then
+                  if fL >= gL - 1 then
+                    if OL ~= 2 then
+                      xL = 2
+                      OL, gL = xL, fL
+                    else
+                    end
+                  else
+                  end
+                else
+                end
+              end
+              if sL < 3 or T < 1 or u == 0 and gL <= 0 or v[OL] == nil then
+                Q.bad = (Q.bad or 0) + 1
+                Q.lab = ("VOIDSBANE: brain - nothing to choose from (ways %d, looked at %d, clear %d)"):format(
+                  sL,
+                  T,
+                  u
+                )
+                Q.plan = { tgo = V, A = { R, _ }, B = nil, hold = true }
+                Q.planAt = V
+                if Q.bad >= 3 then
+                  Q.off = true
+                end
+                return
+              end
+              Q.bad = 0
+              CL, bL, lL, T, KL = v[OL], q[OL], d[OL], O[OL], Z[OL]
+              if T ~= bL or KL ~= lL then
+                if (bL - R) ^ 2 + (lL - _) ^ 2 < (H.vbBrainCorner or 1.5) ^ 2 then
+                  bL, lL = T, KL
+                else
+                end
+              else
+              end
+              DL = l(bL - R) + l(lL - _) < 0.5
+              Q.plan = { tgo = V + CL, A = { bL, lL }, B = (T ~= bL or KL ~= lL) and { T, KL }
+                or nil, hold = DL }
+              Q.planAt = V
+              T = (os.clock() - t) * 1000
+              Q.ms = T
+              if T > (Q.msMax or 0) then
+                Q.msMax = T
+              end
+              vL = if gL >= qL
+                then ("VOIDSBANE: brain - %s%s (%d clear of %d)"):format(
+                  DL and "holding" or (CL > 0.05 and ("waiting %.1fs"):format(CL) or "moving"),
+                  zL and "" or " (tight)",
+                  u,
+                  sL
+                )
+                else ("VOIDSBANE: brain - least bad, hit in %.1fs by %s (0 clear)"):format(
+                  D(gL, h) * G,
+                  L[VL] or "?"
+                )
+              if HL then
+                Q.cuts = (Q.cuts or 0) + 1
+              end
+              Q.lab = if H.vbBrainMs == true
+                then vL .. (" [%.0f ms%s]"):format(T, HL and " cut" or "")
+                else vL
+            end
+            function k.vbBrain(v, U)
+              if H.vbBrain == false then
+                return nil
+              end
+              U = K.vb
+              if U then
+                if typeof(U.glyph) ~= "Vector3" then
+                  return nil
+                end
+              else
+                return nil
+              end
+              if k.gsBonusFind then
+                if not (k.gsBonusFind()) then
+                  return nil
+                end
+              else
+                return nil
+              end
+              local s, D, e = b(), I(), J.Character
+              local J = e and (e:FindFirstChildOfClass("Humanoid"))
+              local P, n = J and J.WalkSpeed or 16, s.track
+              e = n[#n]
+              if e and (D - e[1] > 1.5 or (v.X - e[2]) ^ 2 + (v.Z - e[3]) ^ 2 > 900) then
+                table.clear(n)
+                s.plan = nil
+                s.cur = nil
+              end
+              n[#n + 1] = { D, v.X, v.Z }
+              if #n > 60 then
+                table.remove(n, 1)
+              end
+              if s.ws then
+                if l(P - s.ws) > 1.5 then
+                  if P > s.ws then
+                    s.riseAt, s.hi, s.lo = D, P, s.ws
+                  else
+                    s.fallAt, s.lo, s.hi = D, P, s.ws
+                  end
+                end
+              end
+              s.ws = P
+              s.tick = s.tick + 1
+              if s.off then
+                if D - (s.offAt or D) > 240 then
+                  s.off = nil
+                  s.offAt = nil
+                  s.bad = 0
+                else
+                  s.offAt = s.offAt or D
+                  return nil
+                end
+              end
+              if s.plan then
+                if D - (s.planAt or 0) >= (H.vbBrainEvery or 0.18) then
+                  C(s, v, D, P)
+                end
+              else
+                C(s, v, D, P)
+              end
+              if s.off then
+                s.offAt = D
+                return nil
+              end
+              P = s.plan
+              s.cur = nil
+              if P.hold then
+                return v, s.lab, "hold"
+              elseif D < P.tgo then
+                return v, s.lab, "hold"
+              end
+              e = P.A
+              if
+                f((e[1] - v.X) ^ 2 + (e[2] - v.Z) ^ 2) <= (H.vbBrainArrive or (P.B and 1.5 or 0.7))
+              then
+                if P.B then
+                  P.A = P.B
+                  P.B = nil
+                  s.cur = P.A
+                  U.brainGoal = { x = P.A[1], z = P.A[2], at = os.clock() }
+                  return Vector3.new(P.A[1], v.Y, P.A[2]), s.lab, "go"
+                end
+                return v, s.lab, "hold"
+              end
+              s.cur = e
+              U.brainGoal = { x = e[1], z = e[2], at = os.clock() }
+              return Vector3.new(e[1], v.Y, e[2]), s.lab, "go"
+            end
+          end
+          local f = i:FindFirstChild("remotes")
+          local l = f and (f:FindFirstChild("voidsbaneV3"))
+          if l then
+            if l:IsA("RemoteEvent") then
+              K.connections[#K.connections + 1] = l.OnClientEvent:Connect(function(l, v, J, U, s)
+                if H.vbZones == false then
+                  return
+                end
+                local D, e = pcall(k.vbEvent, l, v, J, U, s)
+                if not D then
+                  w("evt", 2, "Reader", "voidsbane " .. tostring(l) .. ": " .. tostring(e))
+                end
+              end)
+            end
+          end
+          do
+            local function l(v)
+              if H.vbBeamDrops == false then
+                return
+              elseif v.Name ~= "innerBeam" then
+                return
+              elseif not (v:IsA("BasePart")) then
+                return
+              end
+              local J, U = v
+              while J.Parent and J.Parent ~= a do
+                J, U = J.Parent, J
+              end
+              if J.Name ~= "voidsbaneV3Effects" then
+                return
+              elseif U then
+                if U.Name ~= "beams" then
+                  return
+                end
+              else
+                return
+              end
+              task.defer(function()
+                if not v.Parent then
+                  return
+                end
+                local J, U = v.Position, os.clock()
+                if k.vbBrainDrop then
+                  if H.vbBrain ~= false then
+                    pcall(k.vbBrainDrop, J.X, J.Z)
+                  end
+                end
+                local v = (H.vbBeamDropR or 21) + (H.vbPad or 2)
+                k.addZone({
+                  name = "vb beam drop",
+                  kind = "zone",
+                  bubbleKeep = true,
+                  madeAt = U,
+                  weight = 1,
+                  round = true,
+                  cframe = CFrame.new(J.X, J.Y, J.Z),
+                  size = Vector3.new(v * 2, 16, v * 2),
+                  from = U + (H.vbBeamDropFrom or 1.2),
+                  untilAt = U + (H.vbBeamDropUntil or 2.5),
+                })
+              end)
+            end
+            local function v(J)
+              if J then
+                if K.vbFxHooked == J then
+                  return
+                end
+              else
+                return
+              end
+              K.vbFxHooked = J
+              K.connections[#K.connections + 1] = J.DescendantAdded:Connect(function(J)
+                pcall(l, J)
+              end)
+            end
+            v(a:FindFirstChild("voidsbaneV3Effects"))
+            K.connections[#K.connections + 1] = a.ChildAdded:Connect(function(l)
+              if l.Name == "voidsbaneV3Effects" then
+                pcall(v, l)
+              end
+            end)
+          end
+end
+
 local context = {}
 getgenv().InvPlusHarvardContext=context
 components.coreSettings(context)
@@ -168413,6 +185143,7 @@ components.dangerGeometry(context)
 components.odinMechanics(context)
 components.bossPhases(context)
 components.bubbleBoss(context)
+components.voidsbane(context)
 components.movementCombat(context)
 components.inventoryAutomation(context)
 components.partyQueue(context)
