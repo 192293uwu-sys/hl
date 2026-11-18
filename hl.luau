@@ -4974,7 +4974,7 @@ components.coreSettings = function(context)
     config.startTimed = true
     config.startCountdown = 5
     config.preWalkSprint = true
-    config.bonusBoss = false
+    config.bonusBoss = true
     config.bonusVoteDelay = 2
     config.menuKey = "RightShift"
     config.tickHz = 30
@@ -5841,7 +5841,7 @@ components.coreSettings = function(context)
                 blinkMax = 6,
                 blinkMobs = false,
                 bobKeepOutRadius = 68,
-                bonusBoss = false,
+                bonusBoss = true,
                 bossStandoff = 33,
                 bounceWeight = 1,
                 bubbleAlongBonus = 10,
@@ -5993,7 +5993,7 @@ components.coreSettings = function(context)
                 blinkMax = 6,
                 blinkMobs = false,
                 bobKeepOutRadius = 68,
-                bonusBoss = false,
+                bonusBoss = true,
                 bossStandoff = 33,
                 bounceWeight = 1,
                 bubbleAlongBonus = 10,
@@ -120958,6 +120958,8 @@ components.inventoryAutomation = function(context)
             "Lightning Beam|a|u|20|d",
             "Lightning Burst|a|e|7|d",
             "Lightning Strikes|a|r|4|d",
+            "Lumenflame's Absolution|w|x|9|s",
+            "Lumenflame's Judgement|w|x|9|p",
             "Luminous Greatstaff|w|n|18|s",
             "Mage Plate Armor|c|n|21|m",
             "Mage Plate Helmet|h|n|21|m",
@@ -154161,7 +154163,7 @@ components.interfaceMainLoop = function(context)
                     body,
                     "Protected items",
                     3,
-                    "Switch an item on to keep it in every rarity, or light only the rarities to keep under it - it is never sold as a lit one. 898 items, straight off the wiki."
+                    "Switch an item on to keep it in every rarity, or light only the rarities to keep under it - it is never sold as a lit one. 900 items, including the two Voidsbane Ultimates."
                 ),
                 { text = "", kind = "any", dung = "any", tier = "any" },
                 { { value = "any", label = "Every dungeon" } },
@@ -190455,7 +190457,7 @@ return function(context)
  if B.Features then return B.Features end
  local X={alive=true,version=1} B.Features=X E.InvPlusHarvard=B
  local H=game:GetService("HttpService") local path="Inv++/harvard_features_"..P.UserId..".json"
- local prefs={startMinimized=true,migrated=false}
+ local prefs={startMinimized=true,migrated=false,protectedV2=false,bonusBossV2=false}
  pcall(function() local v=H:JSONDecode(readfile(path)) for k in pairs(prefs) do if type(v[k])==type(prefs[k]) then prefs[k]=v[k] end end end)
  local function save() writefile(path,H:JSONEncode(prefs)) end
  if not prefs.migrated then
@@ -190469,7 +190471,9 @@ return function(context)
   cfg.autoSell=true cfg.sellCommon=true cfg.sellUncommon=true cfg.sellRare=true cfg.sellEpic=true
   cfg.sellLegendary=false cfg.sellUltimate=false cfg.sellKeepLevel=0 cfg.sellLobbyOnly=true cfg.sellAfterGames=1
   cfg.sellKeep=cfg.sellKeep or {}
-  for _,name in ipairs({"Gildenscale Warrior Helmet","Gildenscale Warrior Armor","Gildenscale Mage Helmet","Gildenscale Mage Armor","Gildenscale Guardian Helmet","Gildenscale Guardian Armor","Daybreak And Gildensong","Gildenscale Oath And Aegis","Oathsworn Halberd","Oathsworn Staff And Tome"}) do cfg.sellKeep[name:lower():gsub("[^a-z0-9]",""):gsub("armour","armor")]=true end
+  local function keepKey(name) return name:lower():gsub("[^a-z0-9]",""):gsub("armour","armor") end
+  for _,name in ipairs({"Daybreak And Gildensong","Gildenscale Oath And Aegis","Lumenflame's Absolution","Lumenflame's Judgement"}) do cfg.sellKeep[keepKey(name)]=true end
+  for _,name in ipairs({"Gildenscale Warrior Armor","Gildenscale Mage Armor","Gildenscale Guardian Armor"}) do cfg.sellKeep[keepKey(name)]={epic=true,legendary=true,ultimate=true} end
   if context.AF and context.AF.load then
    local party=context.AF.load() party.on=true party.auto=false party.map="Gilded Skies" party.difficulty="Nightmare" party.replay=true
    party.accounts={} for _,m in ipairs(B.F.config.roster) do table.insert(party.accounts,{name=m.name,role=m.name=="mgtargeter01" and "leader" or "fight",enabled=true}) end
@@ -190481,6 +190485,21 @@ return function(context)
  end
  for name,v in pairs(context.CFG.sellKeep or {}) do if v==true then context.CFG.sellKeep[name:lower():gsub("[^a-z0-9]",""):gsub("armour","armor")]=true end end
  if context.saveConfig then context.saveConfig() end
+ if not prefs.protectedV2 then
+   local cfg=context.CFG
+   local function keepKey(name) return name:lower():gsub("[^a-z0-9]",""):gsub("armour","armor") end
+   cfg.sellKeep=type(cfg.sellKeep)=="table" and cfg.sellKeep or {}
+   for _,name in ipairs({"Gildenscale Warrior Helmet","Gildenscale Mage Helmet","Gildenscale Guardian Helmet","Oathsworn Halberd","Oathsworn Staff And Tome"}) do cfg.sellKeep[keepKey(name)]=nil end
+   for _,name in ipairs({"Daybreak And Gildensong","Gildenscale Oath And Aegis","Lumenflame's Absolution","Lumenflame's Judgement"}) do cfg.sellKeep[keepKey(name)]=true end
+   for _,name in ipairs({"Gildenscale Warrior Armor","Gildenscale Mage Armor","Gildenscale Guardian Armor"}) do cfg.sellKeep[keepKey(name)]={epic=true,legendary=true,ultimate=true} end
+   if context.saveConfig then context.saveConfig() end
+   prefs.protectedV2=true save()
+ end
+ if not prefs.bonusBossV2 then
+  context.CFG.bonusBoss=true
+  if context.saveConfig then context.saveConfig() end
+  prefs.bonusBossV2=true save()
+ end
  assert(loadstring(readfile("Inv++/harvard_party.lua"),"Harvard active party"))()(context,B)
  assert(loadstring(readfile("Inv++/harvard_webhook_art.lua"),"Harvard game item artwork"))()(context,B)
  assert(loadstring(readfile("Inv++/harvard_fleet.lua"),"Harvard shared inventory queue"))()(context,B)
@@ -190488,9 +190507,9 @@ return function(context)
  local originalProtect=B.protected
  B.protected=function(item)
   if type(item)~="table" then return true end
-  local name=tostring(item.name or ""):lower() local rarity=tostring(item.rarity or ""):lower()
-  if rarity=="legendary" or rarity=="ultimate" or name:find("gildenscale",1,true) or name=="oathsworn halberd" or name=="oathsworn staff and tome" then return true end
-  -- Keep one of each nonlegendary spell, plus every equipped copy.
+  -- Rarity/name rules now live in CFG.sellKeep plus the sell rarity toggles,
+  -- so Ultimate/Gildenscale/Oathsworn drops can sell when the user allows it.
+  -- Keep one of each spell, plus every equipped copy.
   if type(item.equipped)=="table" then
    for _,v in pairs(item.equipped) do if v==true then return true end end
    local winner
