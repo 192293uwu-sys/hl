@@ -56695,50 +56695,6 @@ components.movementCombat = function(context)
     end
     local function helper2(humanoid, progAt, argument, argument2, argument3, argument4)
         local value = {}
-        -- Voidsbane pure drive: bypass every legacy GS/Rodin correction while
-        -- the VB planner point is fresh (new.txt p() vbDriveNow behaviour).
-        if capturedContext[2].vbDriveNow and progAt and argument then
-            local vbHere, vbGoal = progAt.Position, argument
-            local vbDir = Vector3.new(vbGoal.X - vbHere.X, 0, vbGoal.Z - vbHere.Z)
-            movement.driving = true
-            setControlsEnabled(false)
-            local vbWalk = capturedContext[2].walkSpeed
-                or context.walkNormal and context.walkNormal(humanoid)
-                or math.min(humanoid.WalkSpeed, capturedContext[1].tweenWalk or 16)
-            if not capturedContext[2].walkSpeedBefore then
-                capturedContext[2].walkSpeed = vbWalk
-            end
-            helper(humanoid, (argument2 or 0) > vbWalk + 0.5, argument2)
-            if vbDir.Magnitude <= (argument3 or 1) then
-                movement.counts.arrive = movement.counts.arrive + 1
-                movement.cmdDir = nil
-                movement.cmdAt = capturedContext[2].brainNow
-                movementBoost.steer(nil)
-                humanoid:Move(Vector3.zero, false)
-                movement.stallSince = nil
-                return true
-            end
-            movement.counts.walked = movement.counts.walked + 1
-            local vbAutoRotate = os.clock() - movement.facedAt < 0.25 or hasCastFacing()
-            if humanoid.AutoRotate == vbAutoRotate then
-                humanoid.AutoRotate = not vbAutoRotate
-            end
-            local vbUnit = vbDir.Unit
-            movementBoost.steer(vbUnit)
-            if movementBoost.active() then
-                humanoid:Move(Vector3.zero, false)
-            else
-                local vbScale = math.clamp(
-                    (argument2 or vbWalk) / math.max(humanoid.WalkSpeed, 1),
-                    0.15,
-                    1
-                )
-                movement.cmdDir = vbUnit
-                movement.cmdAt = capturedContext[2].brainNow
-                humanoid:Move(vbUnit * vbScale, false)
-            end
-            return false
-        end
         if
             HLGS == true
             and argument
@@ -56775,6 +56731,7 @@ components.movementCombat = function(context)
                 gsCirclePathAt = os.clock()
                 if
                     capturedContext[1].gsCirclePath ~= false
+                    and not capturedContext[2].vbDriveNow
                     and context.gsCirclePathCut
                     and not (context.BB and context.BB.lethal)
                     and not (capturedContext[2].gsCircleOutAt and gsCirclePathAt - capturedContext[2].gsCircleOutAt < 0.05)
@@ -56823,7 +56780,7 @@ components.movementCombat = function(context)
             end
         end
         if not capturedContext[2].gsMillIn then
-            if context.gsNoStillStep then
+            if not capturedContext[2].vbDriveNow and context.gsNoStillStep then
                 if HLGS == true then
                     value7 = capturedContext[2].gsStillMill
                     if
@@ -56853,19 +56810,19 @@ components.movementCombat = function(context)
         value7 = capturedContext[2].gsFwdDrive ~= nil
             and capturedContext[2].gsFwdDrive == (capturedContext[2].frameN or capturedContext[2].brainNow)
             and capturedContext[1].gsFwdPure ~= false
-        if context.gsTurnCap then
+        if context.gsTurnCap and not capturedContext[2].vbDriveNow then
             if not value7 then
                 local success3, value11 = pcall(context.gsTurnCap, progAt, argument, os.clock())
                 argument = if success3 then value11 or argument else argument
             end
         end
-        if context.gsBacktrack then
+        if context.gsBacktrack and not capturedContext[2].vbDriveNow then
             if not value7 then
                 local success4, value12 = pcall(context.gsBacktrack, progAt.Position, argument, os.clock())
                 argument = if success4 then value12 or argument else argument
             end
         end
-        if context.gsBlockGuard then
+        if context.gsBlockGuard and not capturedContext[2].vbDriveNow then
             if not value7 then
                 local success5, value13 = pcall(
                     context.gsBlockGuard,
@@ -56890,7 +56847,7 @@ components.movementCombat = function(context)
                 end
             end
         end
-        if context.gsBarAcross then
+        if context.gsBarAcross and not capturedContext[2].vbDriveNow then
             local success6, value14 = pcall(context.gsBarAcross, progAt.Position, argument, os.clock())
             if success6 and value14 then
                 argument = value14
@@ -56905,7 +56862,7 @@ components.movementCombat = function(context)
                 end
             end
         end
-        if context.gsLineGuard then
+        if context.gsLineGuard and not capturedContext[2].vbDriveNow then
             if
                 not (
                     capturedContext[2].gsBarAcrossAt ~= nil
@@ -56929,6 +56886,7 @@ components.movementCombat = function(context)
         end
         if
             context.gsRailHold
+            and not capturedContext[2].vbDriveNow
             and (
                 if value7
                     then capturedContext[1].gsLanesDT ~= false and not (context.gsCraggUp and context.gsCraggUp())
@@ -56960,7 +56918,7 @@ components.movementCombat = function(context)
                 argument = if success9 then value17 or argument else argument
             end
         end
-        if HLGS == true and context.gsOrbAway then
+        if HLGS == true and context.gsOrbAway and not capturedContext[2].vbDriveNow then
             if not argument4 then
                 local success10, value18 = pcall(context.gsOrbAway, progAt.Position, argument, os.clock())
                 if success10 then
@@ -56973,7 +56931,7 @@ components.movementCombat = function(context)
                 end
             end
         end
-        if HLGS == true and context.gsStepGuard then
+        if HLGS == true and context.gsStepGuard and not capturedContext[2].vbDriveNow then
             if not argument4 then
                 local success11, value19, value20 =
                     pcall(context.gsStepGuard, progAt.Position, argument, argument2)
@@ -57010,6 +56968,7 @@ components.movementCombat = function(context)
         end
         if
             context.spikeWay
+            and not capturedContext[2].vbDriveNow
             and not (capturedContext[2].gsCircleOutAt and os.clock() - capturedContext[2].gsCircleOutAt < 0.05)
             and (
                 if value7 then context.gsCraggChainNear and context.gsCraggChainNear(vector4) else not value7
@@ -57129,7 +57088,7 @@ components.movementCombat = function(context)
             movement.cornerUntil = nil
             movement.cornerDir = nil
         end
-        if capturedContext[1].cornerWrap ~= false and not walkSpeed then
+        if capturedContext[1].cornerWrap ~= false and not walkSpeed and not capturedContext[2].vbDriveNow then
             argument3 = os.clock()
             if movement.cornerUntil and argument3 < movement.cornerUntil and movement.cornerDir then
                 value21 = movement.cornerDir * value21.Magnitude
@@ -57180,6 +57139,7 @@ components.movementCombat = function(context)
             end
         end
         value21 = if capturedContext[1].mageArc ~= false
+                and not capturedContext[2].vbDriveNow
                 and not value7
                 and value21.Magnitude > 0.5
                 and not (context.BB and (context.BB.lethal or context.BB.goal ~= nil))
@@ -57201,7 +57161,7 @@ components.movementCombat = function(context)
                 then if context.buffHoldsSpeed(os.clock()) then 1 else value7
                 else value7
             local direction2, cmdDir = value21.Unit
-            if capturedContext[1].wallSlide ~= false then
+            if capturedContext[1].wallSlide ~= false and not capturedContext[2].vbDriveNow then
                 argument3 = capturedContext[1].wallSlideProbe or 4.5
                 walkSpeed = workspaceService:Raycast(
                     vector4 + Vector3.new(0, 1.5, 0),
@@ -57266,6 +57226,7 @@ components.movementCombat = function(context)
             if
                 HLGS == true
                 and capturedContext[1].gsWhiskers ~= false
+                and not capturedContext[2].vbDriveNow
                 and not capturedContext[2].wallSlide
             then
                 local success13, value46 = pcall(function()
@@ -85230,7 +85191,7 @@ components.movementCombat = function(context)
             and os.clock() - capturedContext[3].vb.noCutAt < 0.05
         capturedContext[2].vbDriveNow = vbDriveNow
         if vbDriveNow then
-            helper2(argument, argument2, vector2, argument3, 1)
+            helper2(argument, argument2, vector2, argument3, 0.3)
             return true
         end
         local value2, value3 =
@@ -113041,16 +113002,25 @@ components.movementCombat = function(context)
                     and argument < vbRT.gsInvEnd - (capturedContext[1].vbInvLead or 1.5)
                     or false
 
-                local function vbRunStep(vbFn, vbLabelPrefix, vbAllowHold, vbWeight)
+                local function vbRunStep(vbFn, vbLabelPrefix, vbAllowHold, vbSetNoCut, vbHoldNear)
                     if not vbFn then
                         return false
                     end
                     local vbOK, vbPoint, vbLabel, vbMode = pcall(vbFn, posSeen, argument)
                     if vbOK and vbPoint then
                         combatBrain.waypoints = nil
-                        capturedContext[3].vb = capturedContext[3].vb or {}
-                        capturedContext[3].vb.noCutAt = argument
-                        if vbMode == "hold" and vbAllowHold then
+                        if vbSetNoCut ~= false then
+                            capturedContext[3].vb = capturedContext[3].vb or {}
+                            capturedContext[3].vb.noCutAt = argument
+                        end
+                        local vbHold = vbMode == "hold"
+                        if vbHoldNear and posSeen and vbPoint then
+                            local vbDX, vbDZ = vbPoint.X - posSeen.X, vbPoint.Z - posSeen.Z
+                            if vbDX * vbDX + vbDZ * vbDZ <= 2.25 then
+                                vbHold = true
+                            end
+                        end
+                        if vbHold and vbAllowHold then
                             releaseMover(humanoid, value5)
                         else
                             helper57(
@@ -113088,7 +113058,7 @@ components.movementCombat = function(context)
                     return
                 end
                 if not vbRT.vbInvNow then
-                    if vbRunStep(context.vbLance, "lance", true) then
+                    if vbRunStep(context.vbLance, "lance", true, true, true) then
                         return
                     end
                     if vbRunStep(context.vbBreathPlan, "breath plan", false) then
@@ -113097,15 +113067,15 @@ components.movementCombat = function(context)
                     if capturedContext[1].vbOut ~= false and vbRunStep(context.vbOut, "out", false) then
                         return
                     end
-                    if vbRunStep(context.vbBreathRun, "breath run", false) then
+                    if vbRunStep(context.vbBreathRun, "breath run", false, false) then
                         return
                     end
                 end
                 if not vbLethal then
-                    if vbRunStep(context.vbRune, "rune", true) then
+                    if vbRunStep(context.vbRune, "rune", true, false) then
                         return
                     end
-                    if vbRunStep(context.vbFight, "fight", true) then
+                    if vbRunStep(context.vbFight, "fight", true, false) then
                         return
                     end
                 end
